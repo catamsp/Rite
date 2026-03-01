@@ -121,6 +121,9 @@ class GeminiClient {
                             }
                             resultText = lines.joinToString("\n")
                         }
+                        resultText = resultText
+                            .replace("---BEGIN TEXT---", "")
+                            .replace("---END TEXT---", "")
                         Result.success(resultText.trim())
                     } else {
                         Result.failure(Exception("No content found in response"))
