@@ -26,6 +26,7 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import android.widget.Toast
 import com.musheer360.swiftslate.api.GeminiClient
+import com.musheer360.swiftslate.api.OpenAICompatibleClient
 import com.musheer360.swiftslate.manager.CommandManager
 import com.musheer360.swiftslate.manager.KeyManager
 import com.musheer360.swiftslate.model.Command
@@ -48,6 +49,7 @@ class AssistantService : AccessibilityService() {
     private lateinit var keyManager: KeyManager
     private lateinit var commandManager: CommandManager
     private val client = GeminiClient()
+    private val openAIClient = OpenAICompatibleClient()
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
     @Volatile
@@ -130,7 +132,24 @@ class AssistantService : AccessibilityService() {
 
     private fun processCommand(source: AccessibilityNodeInfo, text: String, command: Command) {
         val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
+        val providerType = prefs.getString("provider_type", "gemini") ?: "gemini"
+        val model: String
+        val customEndpoint: String?
+
+        if (providerType == "custom") {
+            model = prefs.getString("custom_model", "") ?: ""
+            customEndpoint = prefs.getString("custom_endpoint", "") ?: ""
+            if (model.isBlank() || customEndpoint.isBlank()) {
+                serviceScope.launch {
+                    showToast("Custom provider not configured. Set endpoint and model in Settings.")
+                }
+                isProcessing = false
+                return
+            }
+        } else {
+            model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
+            customEndpoint = null
+        }
         val temperature = DEFAULT_TEMPERATURE
 
         currentJob = serviceScope.launch {
@@ -150,7 +169,11 @@ class AssistantService : AccessibilityService() {
                             spinnerJob = startInlineSpinner(source, originalText)
                         }
 
-                        val result = client.generate(command.prompt, text, key, model, temperature)
+                        val result = if (providerType == "custom") {
+                            openAIClient.generate(command.prompt, text, key, model, temperature, customEndpoint!!)
+                        } else {
+                            client.generate(command.prompt, text, key, model, temperature)
+                        }
 
                         if (result.isSuccess) {
                             spinnerJob?.cancel()

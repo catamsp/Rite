@@ -129,7 +129,7 @@ fun DashboardScreen() {
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = """1. Enable the Accessibility Service.
-2. Add at least one Gemini API key.
+2. Add at least one API key.
 3. Type anywhere in Android, ending with a trigger like '?fix' or '?casual'.
 4. Wait a moment for the text to be magically replaced!""".trimIndent(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

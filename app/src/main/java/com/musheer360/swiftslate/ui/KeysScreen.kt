@@ -1,5 +1,6 @@
 package com.musheer360.swiftslate.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musheer360.swiftslate.api.GeminiClient
+import com.musheer360.swiftslate.api.OpenAICompatibleClient
 import com.musheer360.swiftslate.manager.KeyManager
 import com.musheer360.swiftslate.ui.components.ScreenTitle
 import com.musheer360.swiftslate.ui.components.SlateCard
@@ -31,7 +33,11 @@ fun KeysScreen() {
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    val client = remember { GeminiClient() }
+    val geminiClient = remember { GeminiClient() }
+    val openAIClient = remember { OpenAICompatibleClient() }
+    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    val providerType = remember { prefs.getString("provider_type", "gemini") ?: "gemini" }
+    val customEndpoint = remember { prefs.getString("custom_endpoint", "") ?: "" }
 
     Column(
         modifier = Modifier
@@ -45,7 +51,7 @@ fun KeysScreen() {
             OutlinedTextField(
                 value = newKey,
                 onValueChange = { newKey = it },
-                label = { Text("Gemini API Key") },
+                label = { Text("API Key") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -71,7 +77,11 @@ fun KeysScreen() {
                                     testResult = "This key has already been added"
                                     return@launch
                                 }
-                                val result = client.validateKey(trimmedKey)
+                                val result = if (providerType == "custom" && customEndpoint.isNotBlank()) {
+                                    openAIClient.validateKey(trimmedKey, customEndpoint)
+                                } else {
+                                    geminiClient.validateKey(trimmedKey)
+                                }
                                 isTesting = false
                                 if (result.isSuccess) {
                                     keyManager.addKey(trimmedKey)
