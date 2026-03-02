@@ -8,7 +8,7 @@
 
 # SwiftSlate
 
-### System-wide AI text assistant for Android — powered by Gemini
+### System-wide AI text assistant for Android — powered by Gemini and custom providers
 
 Type a trigger like **`?fix`** at the end of any text, in any app, and watch it get replaced with AI-enhanced content — instantly.
 
@@ -16,7 +16,7 @@ Type a trigger like **`?fix`** at the end of any text, in any app, and watch it 
 
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#-getting-started)
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#%EF%B8%8F-tech-stack)
-[![Gemini](https://img.shields.io/badge/Gemini_AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-powered-by-gemini)
+[![Gemini](https://img.shields.io/badge/Gemini_AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-powered-by-gemini--custom-providers)
 [![License: MIT](https://img.shields.io/badge/MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
 [![Latest Release](https://img.shields.io/github/v/release/Musheer360/SwiftSlate?style=flat-square&label=Latest&color=brightgreen)](https://github.com/Musheer360/SwiftSlate/releases/latest)
@@ -94,7 +94,7 @@ Integrates at the system level via Android's Accessibility Service. Works in **a
 Type, trigger, done. The AI response replaces your text directly in the same field — no copy-pasting, no app switching. A spinner (`◐ ◓ ◑ ◒`) shows progress.
 
 ### 🔑 Multi-Key Rotation
-Add multiple Gemini API keys for automatic round-robin rotation. If one key hits a rate limit, SwiftSlate seamlessly switches to the next.
+Add multiple API keys for automatic round-robin rotation. If one key hits a rate limit, SwiftSlate seamlessly switches to the next.
 
 ### 🌙 AMOLED Dark Theme
 Pure black (`#000000`) Material 3 interface designed for OLED screens — saves battery and looks stunning.
@@ -102,8 +102,8 @@ Pure black (`#000000`) Material 3 interface designed for OLED screens — saves 
 </td>
 <td width="50%">
 
-### 🤖 Powered by Gemini
-Uses Google's Gemini API with a choice of models — `gemini-2.5-flash-lite` for speed or `gemini-3-flash-preview` for more capable responses.
+### 🤖 Powered by Gemini & Custom Providers
+Ships with Google's Gemini API (`gemini-2.5-flash-lite` or `gemini-3-flash-preview`). Or connect **any OpenAI-compatible endpoint** — use your own provider, model, and base URL.
 
 ### 🎨 Custom Commands
 Create your own trigger → prompt pairs. Define `?poem` to turn text into poetry, `?eli5` to simplify for a five-year-old, or anything you can imagine.
@@ -112,7 +112,7 @@ Create your own trigger → prompt pairs. Define `?poem` to turn text into poetr
 API keys are encrypted with **AES-256-GCM** using the Android Keystore. Your keys never leave your device unencrypted.
 
 ### 🛡️ Privacy-First
-No analytics. No telemetry. No intermediary servers. Text is sent directly to the Gemini API and only when a trigger is detected.
+No analytics. No telemetry. No intermediary servers. Text is sent directly to the configured provider's API and only when a trigger is detected.
 
 </td>
 </tr>
@@ -165,7 +165,7 @@ Use any standard language code with `?translate:XX`:
 | Requirement | Details |
 |:------------|:--------|
 | **Android Device** | Android 6.0+ (API 23 or higher) |
-| **Gemini API Key** | Free at [aistudio.google.com](https://aistudio.google.com) |
+| **API Key** | Free Gemini key at [aistudio.google.com](https://aistudio.google.com), or a key from any OpenAI-compatible provider |
 
 ### Installation
 
@@ -188,7 +188,7 @@ Use any standard language code with `?translate:XX`:
 
 🔑 **Add API Key**
 
-Open the **Keys** tab, enter your Gemini API key. It's validated before saving. Add multiple keys for rotation.
+Open the **Keys** tab, enter your API key. It's validated before saving. Add multiple keys for rotation.
 
 </td>
 <td width="33%" align="center">
@@ -221,7 +221,7 @@ flowchart TD
     A["📝 You type: 'Hello wrld, how r u ?fix'"] --> B{"🔍 Accessibility Service\ndetects trigger"}
     B --> C["✂️ Extracts text before trigger:\n'Hello wrld, how r u'"]
     C --> D["🔑 Selects next available\nAPI key (round-robin)"]
-    D --> E["🤖 Sends text + prompt\nto Gemini API"]
+    D --> E["🤖 Sends text + prompt\nto AI provider"]
     E --> F["⏳ Shows inline spinner\n◐ ◓ ◑ ◒"]
     F --> G["✅ Replaces text in-place:\n'Hello world, how are you?'"]
 
@@ -243,7 +243,7 @@ flowchart TD
 2. **Fast Exit Optimization** — For performance, it first checks if the last character of typed text matches any known trigger's last character before doing a full scan
 3. **Longest Match** — When a potential match is found, it searches for the longest matching trigger at the end of the text
 4. **Text Extraction** — The text before the trigger is extracted and paired with the command's prompt
-5. **API Call** — The text + prompt is sent to the Gemini API using the next available key in the round-robin rotation
+5. **API Call** — The text + prompt is sent to the configured AI provider using the next available key in the round-robin rotation
 6. **Inline Spinner** — While waiting for the response, a spinner animation (`◐ ◓ ◑ ◒`) replaces the text to provide visual feedback
 7. **Text Replacement** — The AI response replaces the original text using `ACTION_SET_TEXT`
 8. **Fallback Strategy** — If `ACTION_SET_TEXT` fails (some apps don't support it), SwiftSlate falls back to a clipboard-based paste approach
@@ -280,7 +280,7 @@ Go beyond the built-ins — create your own trigger → prompt pairs in the **Co
 
 ## 🔑 API Key Management
 
-SwiftSlate supports multiple Gemini API keys with intelligent rotation:
+SwiftSlate supports multiple API keys with intelligent rotation:
 
 | Feature | Details |
 |:--------|:--------|
@@ -290,7 +290,7 @@ SwiftSlate supports multiple Gemini API keys with intelligent rotation:
 | **Encrypted Storage** | All keys encrypted with AES-256-GCM via Android Keystore before being saved locally |
 
 > [!TIP]
-> Adding **2–3 API keys** helps avoid rate limits during heavy use. Each free Gemini API key has its own quota.
+> Adding **2–3 API keys** helps avoid rate limits during heavy use. Each API key has its own quota.
 
 <br>
 
@@ -330,9 +330,11 @@ SwiftSlate has **four screens** accessible via the bottom navigation bar:
 <td width="25%" valign="top">
 
 #### ⚙️ Settings
+- Provider selection
+  - Google Gemini (default)
+  - Custom (OpenAI Compatible)
 - Model selection
-- `gemini-2.5-flash-lite` (default)
-- `gemini-3-flash-preview`
+- Custom endpoint URL & model name
 
 </td>
 </tr>
@@ -348,7 +350,7 @@ SwiftSlate has **four screens** accessible via the bottom navigation bar:
 | | Concern | How SwiftSlate Handles It |
 |:--|:--------|:------------------------|
 | 👁️ | **Text Monitoring** | Only processes text when a trigger command is detected at the end. All other typing is completely ignored. |
-| 📡 | **Data Transmission** | Text is sent **only** to Google's Gemini API (`generativelanguage.googleapis.com`). No other servers are ever contacted. |
+| 📡 | **Data Transmission** | Text is sent **only** to the configured AI provider (Google Gemini or your custom endpoint). No other servers are ever contacted. |
 | 🔐 | **Key Storage** | API keys are encrypted with AES-256-GCM using the Android Keystore system before being saved locally. |
 | 📊 | **Analytics** | **None.** Zero telemetry, zero tracking, zero crash reporting. |
 | 📖 | **Open Source** | The entire codebase is open for inspection under the MIT License. |
@@ -438,7 +440,7 @@ git push origin feature/amazing-feature
 ### Ideas for Contributions
 
 - 🧩 New built-in commands
-- 🤖 Additional Gemini model support
+- 🤖 Additional AI provider integrations
 - 🎨 UI improvements and new themes
 - 🌍 Localization / translations
 - 📖 Documentation improvements
