@@ -103,7 +103,7 @@ Pure black (`#000000`) Material 3 interface designed for OLED screens — saves 
 <td width="50%">
 
 ### 🤖 Powered by Gemini & Custom Providers
-Ships with Google's Gemini API (`gemini-2.5-flash-lite` or `gemini-3-flash-preview`). Or connect **any OpenAI-compatible endpoint** — use your own provider, model, and base URL.
+Ships with Google's Gemini API (`gemini-2.5-flash-lite`, `gemini-3-flash-preview`, or `gemini-3.1-flash-lite-preview`). Or connect **any OpenAI-compatible endpoint** — use your own provider, model, and base URL.
 
 ### 🎨 Custom Commands
 Create your own trigger → prompt pairs. Define `?poem` to turn text into poetry, `?eli5` to simplify for a five-year-old, or anything you can imagine.
@@ -336,6 +336,7 @@ SwiftSlate has **four screens** accessible via the bottom navigation bar:
 - Gemini model picker
   - `gemini-2.5-flash-lite` (default)
   - `gemini-3-flash-preview`
+  - `gemini-3.1-flash-lite-preview`
 - Custom endpoint URL & model name
 
 </td>

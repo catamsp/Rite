@@ -29,7 +29,7 @@ fun SettingsScreen() {
     // Gemini settings
     var selectedModel by remember { mutableStateOf(prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite") }
     var modelExpanded by remember { mutableStateOf(false) }
-    val geminiModels = listOf("gemini-2.5-flash-lite", "gemini-3-flash-preview")
+    val geminiModels = listOf("gemini-2.5-flash-lite", "gemini-3-flash-preview", "gemini-3.1-flash-lite-preview")
 
     // Custom provider settings
     var customEndpoint by remember { mutableStateOf(prefs.getString("custom_endpoint", "") ?: "") }
