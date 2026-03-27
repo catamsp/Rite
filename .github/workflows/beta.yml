@@ -1,9 +1,18 @@
-name: Build Release APK
+# Beta CI Pipeline for SwiftSlate
+#
+# Versioning scheme:
+#   - Derives from the NEXT stable version (current latest tag patch + 1)
+#   - Example: if latest stable is v1.0.7, beta versions are v1.0.8-beta.1, v1.0.8-beta.2, ...
+#   - versionCode = (stable commit count * 100) + beta number, ensuring it's higher than
+#     current stable but leaves room (the stable release uses raw commit count)
+#   - Beta tags and releases are marked as pre-release and never affect the stable workflow
+
+name: Build Beta APK
 
 on:
   push:
     branches:
-      - master
+      - beta
     paths:
       - 'app/**'
       - 'build.gradle.kts'
@@ -11,8 +20,6 @@ on:
       - 'gradle/**'
       - 'gradle.properties'
       - '.github/workflows/**'
-    tags:
-      - 'v*'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,10 +34,10 @@ jobs:
     uses: ./.github/workflows/ci.yml
     secrets: inherit
     with:
-      release_type: stable
+      release_type: beta
 
   release:
-    name: Release
+    name: Pre-release
     needs: ci
     runs-on: ubuntu-latest
     permissions:
@@ -45,19 +52,19 @@ jobs:
           name: SwiftSlate-${{ needs.ci.outputs.tag }}
           path: artifacts/
 
-      - name: Create tag
+      - name: Create beta tag
         if: needs.ci.outputs.create_tag == 'true'
         run: |
           git tag "${{ needs.ci.outputs.tag }}"
           git push origin "${{ needs.ci.outputs.tag }}"
 
-      - name: Release
+      - name: Pre-release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2
         with:
           tag_name: ${{ needs.ci.outputs.tag }}
           files: artifacts/SwiftSlate-*.apk
-          name: SwiftSlate ${{ needs.ci.outputs.tag }}
+          name: SwiftSlate ${{ needs.ci.outputs.tag }} (Beta)
           draft: false
-          prerelease: false
+          prerelease: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
