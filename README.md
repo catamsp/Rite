@@ -10,9 +10,9 @@
 
 ### System-wide AI & Utility Text Assistant for Android — Powered by Gemini
 
-### Fork of SwiftSlate
+### Fork of SwiftSlate by Musheer Alam
 
-Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any app, and watch it transform — instantly.
+Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any messaging app, and watch it transform — instantly.
 
 <br>
 
