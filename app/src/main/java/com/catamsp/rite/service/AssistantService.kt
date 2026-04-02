@@ -1,4 +1,4 @@
-﻿package com.catamsp.rite.service
+package com.catamsp.rite.service
 
 import android.accessibilityservice.AccessibilityService
 import android.animation.AnimatorSet
@@ -29,7 +29,14 @@ import com.catamsp.rite.api.GeminiClient
 import com.catamsp.rite.api.OpenAICompatibleClient
 import com.catamsp.rite.manager.CommandManager
 import com.catamsp.rite.manager.KeyManager
+import com.catamsp.rite.manager.AppManager
+import com.catamsp.rite.manager.ContactManager
+import com.catamsp.rite.manager.ContactResolver
 import com.catamsp.rite.model.Command
+import com.catamsp.rite.model.AppShortcut
+import com.catamsp.rite.model.ContactShortcut
+import android.content.Intent
+import android.content.pm.PackageManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +55,11 @@ class AssistantService : AccessibilityService() {
 
     private lateinit var keyManager: KeyManager
     private lateinit var commandManager: CommandManager
+    private lateinit var appManager: AppManager
+    private lateinit var contactManager: ContactManager
+    private lateinit var contactResolver: ContactResolver
+    private var launcherShortcuts: List<AppShortcut> = emptyList()
+    private var contactShortcuts: List<ContactShortcut> = emptyList()
     private val client = GeminiClient()
     private val openAIClient = OpenAICompatibleClient()
     private val serviceJob = SupervisorJob()
@@ -86,13 +98,22 @@ class AssistantService : AccessibilityService() {
         super.onServiceConnected()
         keyManager = KeyManager(applicationContext)
         commandManager = CommandManager(applicationContext)
-        updateTriggers()
+        appManager = AppManager(applicationContext)
+        contactResolver = ContactResolver(applicationContext)
+        contactManager = ContactManager(applicationContext)
+        serviceScope.launch {
+            appManager.initializeIfNeeded()
+            contactManager.initializeIfNeeded()
+            updateTriggers()
+        }
     }
 
     private fun updateTriggers() {
         cachedPrefix = commandManager.getTriggerPrefix()
         val cmds = commandManager.getCommands()
         triggerLastChars = cmds.mapNotNull { it.trigger.lastOrNull() }.toSet()
+        launcherShortcuts = appManager.getShortcuts()
+        contactShortcuts = contactManager.getShortcuts()
         lastTriggerRefresh = System.currentTimeMillis()
     }
 
@@ -106,6 +127,42 @@ class AssistantService : AccessibilityService() {
             updateTriggers()
         }
 
+        val lastWord = text.substringAfterLast(" ").trimEnd()
+        
+        val shortcut = launcherShortcuts.find { it.triggerCode == lastWord }
+        if (shortcut != null) {
+            if (!shortcut.isEnabled) return
+            if (source.isPassword) { return }
+            isProcessing = true
+            currentJob?.cancel()
+            val cleanText = text.substring(0, text.length - lastWord.length).trimEnd()
+            handleAppLaunch(source, cleanText, shortcut)
+            return
+        }
+
+        val contactShortcut = contactShortcuts.find { it.triggerCode == lastWord }
+        if (contactShortcut != null) {
+            if (!contactShortcut.isEnabled) return
+            if (source.isPassword) { return }
+            isProcessing = true
+            currentJob?.cancel()
+            val cleanText = text.substring(0, text.length - lastWord.length).trimEnd()
+            handleDirectCall(source, cleanText, contactShortcut.contactName)
+            return
+        }
+
+        if (lastWord.startsWith("?call:")) {
+            if (source.isPassword) { return }
+            val name = lastWord.removePrefix("?call:")
+            if (name.isNotEmpty()) {
+                isProcessing = true
+                currentJob?.cancel()
+                val cleanText = text.substring(0, text.length - lastWord.length).trimEnd()
+                handleDirectCall(source, cleanText, name)
+                return
+            }
+        }
+
         val lastChar = text[text.length - 1]
         if (!triggerLastChars.contains(lastChar)) {
             if (!lastChar.isLetterOrDigit() || !text.contains("${cachedPrefix}translate:")) {
@@ -114,6 +171,7 @@ class AssistantService : AccessibilityService() {
         }
 
         val command = commandManager.findCommand(text) ?: return
+        if (!command.isEnabled) return
 
         val cleanText = text.substring(0, text.length - command.trigger.length).trim()
 
@@ -550,5 +608,77 @@ class AssistantService : AccessibilityService() {
         super.onDestroy()
         dismissOverlayToast()
         serviceScope.cancel()
+    }
+
+    private fun handleDirectCall(source: AccessibilityNodeInfo, cleanText: String, name: String) {
+        currentJob = serviceScope.launch {
+            try {
+                replaceText(source, cleanText)
+                performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                delay(100)
+                
+                if (checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED ||
+                    checkSelfPermission(android.Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                    showToast("Missing Contacts or Phone permission. Please open app settings.")
+                    return@launch
+                }
+
+                val bestNumber = contactResolver.resolveContact(name)
+                if (bestNumber != null) {
+                    val intent = Intent(Intent.ACTION_CALL).apply {
+                        data = android.net.Uri.parse("tel:$bestNumber")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(intent)
+                } else {
+                    showToast("Contact not found for: $name")
+                }
+            } catch (e: Exception) {
+                showToast("Calling failed: ${e.message}")
+            } finally {
+                withContext(NonCancellable + Dispatchers.Main) {
+                    if (!handler.postDelayed({ isProcessing = false }, 500)) {
+                        isProcessing = false
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleAppLaunch(source: AccessibilityNodeInfo, cleanText: String, shortcut: AppShortcut) {
+        currentJob = serviceScope.launch {
+            try {
+                replaceText(source, cleanText)
+                performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                delay(150)
+                
+                var launchIntent: Intent? = null
+                if (shortcut.packageName != null) {
+                    launchIntent = applicationContext.packageManager.getLaunchIntentForPackage(shortcut.packageName)
+                } else if (shortcut.intentAction != null) {
+                    launchIntent = Intent(shortcut.intentAction)
+                    if (shortcut.intentUri != null) {
+                        launchIntent.data = android.net.Uri.parse(shortcut.intentUri)
+                    }
+                }
+                
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    isProcessing = false
+                    delay(300)
+                    startActivity(launchIntent)
+                } else {
+                    showToast("Could not launch ${shortcut.appName}")
+                }
+            } catch (e: Exception) {
+                showToast("Launch failed: ${e.message}")
+            } finally {
+                withContext(NonCancellable + Dispatchers.Main) {
+                    if (!handler.postDelayed({ isProcessing = false }, 500)) {
+                        isProcessing = false
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿package com.catamsp.rite.ui
+package com.catamsp.rite.ui
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
@@ -7,13 +7,23 @@ import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -33,7 +43,7 @@ private fun checkServiceEnabled(context: Context): Boolean {
 }
 
 @Composable
-fun DashboardScreen() {
+fun DashboardScreen(onSettingsClick: () -> Unit = {}) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val keyManager = remember { KeyManager(context) }
@@ -63,7 +73,21 @@ fun DashboardScreen() {
             .fillMaxSize()
             .padding(24.dp)
     ) {
-        ScreenTitle("Dashboard")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ScreenTitle("Dashboard")
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
 
         SlateCard {
             Text(
@@ -123,20 +147,58 @@ fun DashboardScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        SlateCard {
-            Text(
-                text = "How to use",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "1. Enable the Accessibility Service.\n2. Add at least one API key.\n3. Type anywhere in Android, ending with a trigger like '${currentPrefix}fix' or '${currentPrefix}casual'.\n4. Wait a moment for the text to be magically replaced!",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 16.sp,
-                lineHeight = 22.sp
-            )
+        if (!isServiceEnabled) {
+            SlateCard {
+                Text(
+                    text = "How to use",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "1. Enable the Accessibility Service.\n2. Add at least one API key.\n3. Type anywhere in Android, ending with a trigger like '${currentPrefix}fix' or '${currentPrefix}casual'.\n4. Wait a moment for the text to be magically replaced!",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 16.sp,
+                    lineHeight = 22.sp
+                )
+            }
         }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        val uriHandler = LocalUriHandler.current
+        val annotatedString = buildAnnotatedString {
+            append("Forked and vibe coded by ")
+            pushStringAnnotation(tag = "catamsp", annotation = "https://github.com/catamsp")
+            withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) {
+                append("catamsp")
+            }
+            pop()
+            append(". All credits goes to ")
+            pushStringAnnotation(tag = "Musheer", annotation = "https://github.com/Musheer360")
+            withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline)) {
+                append("Musheer Alam")
+            }
+            pop()
+            append(".")
+        }
+        
+        ClickableText(
+            text = annotatedString,
+            onClick = { offset ->
+                annotatedString.getStringAnnotations("catamsp", offset, offset).firstOrNull()?.let {
+                    uriHandler.openUri(it.item)
+                }
+                annotatedString.getStringAnnotations("Musheer", offset, offset).firstOrNull()?.let {
+                    uriHandler.openUri(it.item)
+                }
+            },
+            style = MaterialTheme.typography.bodySmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            ),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
     }
 }

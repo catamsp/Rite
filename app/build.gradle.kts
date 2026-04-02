@@ -1,4 +1,4 @@
-﻿plugins {
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
@@ -70,4 +70,5 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.google.code.gson:gson:2.10.1")
 }
