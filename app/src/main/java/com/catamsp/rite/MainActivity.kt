@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate
+﻿package com.catamsp.rite
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,19 +21,19 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.musheer360.swiftslate.ui.CommandsScreen
-import com.musheer360.swiftslate.ui.DashboardScreen
-import com.musheer360.swiftslate.ui.KeysScreen
-import com.musheer360.swiftslate.ui.SettingsScreen
-import com.musheer360.swiftslate.ui.theme.SwiftSlateTheme
+import com.catamsp.rite.ui.CommandsScreen
+import com.catamsp.rite.ui.DashboardScreen
+import com.catamsp.rite.ui.KeysScreen
+import com.catamsp.rite.ui.SettingsScreen
+import com.catamsp.rite.ui.theme.RiteTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            SwiftSlateTheme {
-                SwiftSlateMainScreen()
+            RiteTheme {
+                RiteMainScreen()
             }
         }
     }
@@ -47,7 +47,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 }
 
 @Composable
-fun SwiftSlateMainScreen() {
+fun RiteMainScreen() {
     val navController = rememberNavController()
     val items = listOf(Screen.Dashboard, Screen.Keys, Screen.Commands, Screen.Settings)
     val haptic = LocalHapticFeedback.current

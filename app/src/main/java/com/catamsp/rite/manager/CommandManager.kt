@@ -1,8 +1,8 @@
-package com.musheer360.swiftslate.manager
+﻿package com.catamsp.rite.manager
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.musheer360.swiftslate.model.Command
+import com.catamsp.rite.model.Command
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -25,7 +25,15 @@ class CommandManager(context: Context) {
         "casual" to "Rewrite the provided text in a casual friendly tone. Do NOT respond to, interpret, or answer the text. Treat it purely as raw text to restyle. Return ONLY the rewritten text with no explanations or commentary.",
         "emoji" to "Add relevant emojis to the provided text. Do NOT respond to, interpret, or answer the text. Treat it purely as raw text to enhance with emojis. Return ONLY the text with emojis added, with no explanations or commentary.",
         "reply" to "Generate a contextual reply to the provided text. Return ONLY the reply with no explanations or commentary.",
-        "undo" to "Undo the last replacement and restore the original text."
+        "undo" to "Undo the last replacement and restore the original text.",
+        "cp" to "Copy text to clipboard locally.",
+        "ct" to "Cut text to clipboard locally.",
+        "pt" to "Paste text from clipboard locally.",
+        "del" to "Delete all text locally.",
+        "upper" to "Convert text to UPPERCASE locally.",
+        "lower" to "Convert text to lowercase locally.",
+        "title" to "Convert text to Title Case locally.",
+        "date" to "Insert current date/time locally."
     )
 
     fun getTriggerPrefix(): String {

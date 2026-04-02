@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate.model
+﻿package com.catamsp.rite.model
 
 data class Command(
     val trigger: String,

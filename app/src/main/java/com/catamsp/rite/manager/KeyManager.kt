@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate.manager
+﻿package com.catamsp.rite.manager
 
 import android.content.Context
 import android.content.SharedPreferences

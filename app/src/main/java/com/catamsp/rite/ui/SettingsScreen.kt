@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate.ui
+﻿package com.catamsp.rite.ui
 
 import android.content.Context
 import androidx.compose.foundation.layout.*
@@ -13,9 +13,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.musheer360.swiftslate.manager.CommandManager
-import com.musheer360.swiftslate.ui.components.ScreenTitle
-import com.musheer360.swiftslate.ui.components.SlateCard
+import com.catamsp.rite.manager.CommandManager
+import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.ui.components.SlateCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

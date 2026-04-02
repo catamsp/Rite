@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate.ui
+﻿package com.catamsp.rite.ui
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
@@ -18,10 +18,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import com.musheer360.swiftslate.manager.CommandManager
-import com.musheer360.swiftslate.manager.KeyManager
-import com.musheer360.swiftslate.ui.components.ScreenTitle
-import com.musheer360.swiftslate.ui.components.SlateCard
+import com.catamsp.rite.manager.CommandManager
+import com.catamsp.rite.manager.KeyManager
+import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.ui.components.SlateCard
 import kotlinx.coroutines.delay
 
 private fun checkServiceEnabled(context: Context): Boolean {

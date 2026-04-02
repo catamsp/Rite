@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
 }
@@ -6,11 +6,11 @@ plugins {
 val baseVersion = "1.0"
 
 android {
-    namespace = "com.musheer360.swiftslate"
+    namespace = "com.catamsp.rite"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.musheer360.swiftslate"
+        applicationId = "com.catamsp.rite"
         minSdk = 23
         targetSdk = 36
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1

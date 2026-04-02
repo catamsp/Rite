@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate.service
+﻿package com.catamsp.rite.service
 
 import android.accessibilityservice.AccessibilityService
 import android.animation.AnimatorSet
@@ -25,11 +25,11 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import android.widget.Toast
-import com.musheer360.swiftslate.api.GeminiClient
-import com.musheer360.swiftslate.api.OpenAICompatibleClient
-import com.musheer360.swiftslate.manager.CommandManager
-import com.musheer360.swiftslate.manager.KeyManager
-import com.musheer360.swiftslate.model.Command
+import com.catamsp.rite.api.GeminiClient
+import com.catamsp.rite.api.OpenAICompatibleClient
+import com.catamsp.rite.manager.CommandManager
+import com.catamsp.rite.manager.KeyManager
+import com.catamsp.rite.model.Command
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -125,6 +125,16 @@ class AssistantService : AccessibilityService() {
             return
         }
 
+        val localCommands = setOf("cp", "ct", "pt", "del", "upper", "lower", "title", "date")
+        val cmdName = command.trigger.removePrefix(cachedPrefix)
+        if (command.isBuiltIn && localCommands.contains(cmdName)) {
+            if (source.isPassword) { return }
+            isProcessing = true
+            currentJob?.cancel()
+            handleLocalCommand(source, cleanText, cmdName)
+            return
+        }
+
         if (cleanText.isEmpty() || source.isPassword) { return }
 
         isProcessing = true
@@ -208,7 +218,7 @@ class AssistantService : AccessibilityService() {
                         replaceText(source, originalText)
                         performHapticFeedback(HapticFeedbackConstants.REJECT)
                         if (lastErrorMsg != null) {
-                            showToast("SwiftSlate Error: $lastErrorMsg")
+                            showToast("Rite Error: $lastErrorMsg")
                         } else {
                             val waitMs = keyManager.getShortestWaitTimeMs()
                             if (waitMs != null) {
@@ -233,7 +243,7 @@ class AssistantService : AccessibilityService() {
                 try { replaceText(source, originalText) } catch (_: Exception) {
                     showToast("Could not restore original text")
                 }
-                showToast("SwiftSlate Error: ${e.message}")
+                showToast("Rite Error: ${e.message}")
             } finally {
                 withContext(NonCancellable + Dispatchers.Main) {
                     spinnerJob?.cancel()
@@ -272,6 +282,87 @@ class AssistantService : AccessibilityService() {
         }
     }
 
+    private fun handleLocalCommand(source: AccessibilityNodeInfo, cleanText: String, commandName: String) {
+        currentJob = serviceScope.launch {
+            try {
+                when (commandName) {
+                    "cp" -> {
+                        copyToClipboard(cleanText)
+                        replaceText(source, cleanText)
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                            showToast("Copied to clipboard")
+                        }
+                    }
+                    "ct" -> {
+                        copyToClipboard(cleanText)
+                        replaceText(source, "")
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) {
+                            showToast("Cut to clipboard")
+                        }
+                    }
+                    "pt" -> {
+                        // Avoid background clipboard read restrictions on Android 10+
+                        replaceText(source, cleanText)
+                        delay(100) // allow text replacement to finish
+                        withContext(Dispatchers.Main) {
+                            source.refresh()
+                            val selectArgs = Bundle()
+                            selectArgs.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, cleanText.length)
+                            selectArgs.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, cleanText.length)
+                            source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectArgs)
+                            source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                        }
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                    "del" -> {
+                        replaceText(source, "")
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                    "upper" -> {
+                        replaceText(source, cleanText.uppercase())
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                    "lower" -> {
+                        replaceText(source, cleanText.lowercase())
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                    "title" -> {
+                        val titleCase = cleanText.split(" ").joinToString(" ") { word ->
+                            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() }
+                        }
+                        replaceText(source, titleCase)
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                    "date" -> {
+                        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                        val dateStr = dateFormat.format(java.util.Date())
+                        val newText = if (cleanText.isEmpty()) dateStr else "$cleanText $dateStr"
+                        replaceText(source, newText)
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showToast("Command failed")
+            } finally {
+                withContext(NonCancellable + Dispatchers.Main) {
+                    if (!handler.postDelayed({ isProcessing = false }, 500)) {
+                        isProcessing = false
+                    }
+                }
+            }
+        }
+    }
+
+    private fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Rite", text)
+        clipboard.setPrimaryClip(clip)
+    }
+
     private suspend fun replaceText(source: AccessibilityNodeInfo, newText: String) = withContext(Dispatchers.Main) {
         source.refresh()
         val bundle = Bundle()
@@ -282,7 +373,7 @@ class AssistantService : AccessibilityService() {
         if (!success) {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val oldClip = clipboard.primaryClip
-            val newClip = ClipData.newPlainText("SwiftSlate Result", newText)
+            val newClip = ClipData.newPlainText("Rite Result", newText)
             clipboard.setPrimaryClip(newClip)
 
             val selectAllArgs = Bundle()

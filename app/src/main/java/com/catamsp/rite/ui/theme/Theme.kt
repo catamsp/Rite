@@ -1,4 +1,4 @@
-package com.musheer360.swiftslate.ui.theme
+﻿package com.catamsp.rite.ui.theme
 
 import android.app.Activity
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +28,7 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 @Composable
-fun SwiftSlateTheme(
+fun RiteTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = DarkColorScheme

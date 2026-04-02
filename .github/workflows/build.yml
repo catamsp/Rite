@@ -1,4 +1,4 @@
-name: Build & Release
+﻿name: Build & Release
 
 on:
   push:
@@ -211,13 +211,13 @@ jobs:
 
       - name: Rename APK
         shell: bash
-        run: mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/SwiftSlate-${{ needs.version.outputs.tag }}.apk
+        run: mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/Rite-${{ needs.version.outputs.tag }}.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: SwiftSlate-${{ needs.version.outputs.tag }}
-          path: app/build/outputs/apk/release/SwiftSlate-*.apk
+          name: Rite-${{ needs.version.outputs.tag }}
+          path: app/build/outputs/apk/release/Rite-*.apk
           retention-days: 90
 
   release:
@@ -234,7 +234,7 @@ jobs:
       - name: Download APK
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: SwiftSlate-${{ needs.version.outputs.tag }}
+          name: Rite-${{ needs.version.outputs.tag }}
           path: artifacts/
 
       - name: Create tag
@@ -248,8 +248,8 @@ jobs:
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          files: artifacts/SwiftSlate-*.apk
-          name: SwiftSlate ${{ needs.version.outputs.tag }}
+          files: artifacts/Rite-*.apk
+          name: Rite ${{ needs.version.outputs.tag }}
           draft: false
           prerelease: false
         env:

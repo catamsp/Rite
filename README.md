@@ -1,12 +1,12 @@
-<div align="center">
+﻿<div align="center">
 
 <br>
 
-<img src="playstore-icon.png" width="140" alt="SwiftSlate Icon" />
+<img src="playstore-icon.png" width="140" alt="Rite Icon" />
 
 <br>
 
-# SwiftSlate
+# Rite
 
 ### System-wide AI text assistant for Android — powered by Gemini and custom providers
 
@@ -19,25 +19,25 @@ Type a trigger like **`?fix`** at the end of any text, in any app, and watch it 
 [![Gemini](https://img.shields.io/badge/Gemini_AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-powered-by-gemini--custom-providers)
 [![License: MIT](https://img.shields.io/badge/MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
-[![Latest Release](https://img.shields.io/github/v/release/Musheer360/SwiftSlate?style=flat-square&label=Latest&color=brightgreen)](https://github.com/Musheer360/SwiftSlate/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/catamsp/Rite?style=flat-square&label=Latest&color=brightgreen)](https://github.com/catamsp/Rite/releases/latest)
 [![APK Size](https://img.shields.io/badge/APK_Size-~1.3_MB-blue?style=flat-square)](#)
 [![API 23+](https://img.shields.io/badge/Min_SDK-API_23-orange?style=flat-square)](#)
-[![GitHub Stars](https://img.shields.io/github/stars/Musheer360/SwiftSlate?style=flat-square&color=yellow)](https://github.com/Musheer360/SwiftSlate/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/catamsp/Rite?style=flat-square&color=yellow)](https://github.com/catamsp/Rite/stargazers)
 
 <br>
 
-[<img src="https://img.shields.io/badge/⬇_Download_APK-282828?style=for-the-badge" alt="Download APK" height="36">](https://github.com/Musheer360/SwiftSlate/releases/latest)
+[<img src="https://img.shields.io/badge/⬇_Download_APK-282828?style=for-the-badge" alt="Download APK" height="36">](https://github.com/catamsp/Rite/releases/latest)
 &nbsp;&nbsp;
-[<img src="https://img.shields.io/badge/🐛_Report_Bug-282828?style=for-the-badge" alt="Report Bug" height="36">](https://github.com/Musheer360/SwiftSlate/issues)
+[<img src="https://img.shields.io/badge/🐛_Report_Bug-282828?style=for-the-badge" alt="Report Bug" height="36">](https://github.com/catamsp/Rite/issues)
 &nbsp;&nbsp;
-[<img src="https://img.shields.io/badge/💡_Request_Feature-282828?style=for-the-badge" alt="Request Feature" height="36">](https://github.com/Musheer360/SwiftSlate/issues)
+[<img src="https://img.shields.io/badge/💡_Request_Feature-282828?style=for-the-badge" alt="Request Feature" height="36">](https://github.com/catamsp/Rite/issues)
 
 <br>
 
 </div>
 
 > [!NOTE]
-> **SwiftSlate works everywhere** — WhatsApp, Gmail, Twitter/X, Messages, Notes, Chrome, and every other app with a text field. No copy-pasting. No app switching. Just type and go.
+> **Rite works everywhere** — WhatsApp, Gmail, Twitter/X, Messages, Notes, Chrome, and every other app with a text field. No copy-pasting. No app switching. Just type and go.
 
 <br>
 
@@ -63,19 +63,19 @@ Type a trigger like **`?fix`** at the end of any text, in any app, and watch it 
 
 ```
 📝  You type       →  "i dont no whats hapening ?fix"
-⏳  SwiftSlate      →  ◐ ◓ ◑ ◒  (processing...)
+⏳  Rite      →  ◐ ◓ ◑ ◒  (processing...)
 ✅  Result         →  "I don't know what's happening."
 ```
 
 ```
 📝  You type       →  "hey can u send me that file ?formal"
-⏳  SwiftSlate      →  ◐ ◓ ◑ ◒  (processing...)
+⏳  Rite      →  ◐ ◓ ◑ ◒  (processing...)
 ✅  Result         →  "Could you please share the file at your earliest convenience?"
 ```
 
 ```
 📝  You type       →  "Hello, how are you? ?translate:es"
-⏳  SwiftSlate      →  ◐ ◓ ◑ ◒  (processing...)
+⏳  Rite      →  ◐ ◓ ◑ ◒  (processing...)
 ✅  Result         →  "Hola, ¿cómo estás?"
 ```
 
@@ -94,7 +94,7 @@ Integrates at the system level via Android's Accessibility Service. Works in **a
 Type, trigger, done. The AI response replaces your text directly in the same field — no copy-pasting, no app switching. A spinner (`◐ ◓ ◑ ◒`) shows progress.
 
 ### 🔑 Multi-Key Rotation
-Add multiple API keys for automatic round-robin rotation. If one key hits a rate limit, SwiftSlate seamlessly switches to the next.
+Add multiple API keys for automatic round-robin rotation. If one key hits a rate limit, Rite seamlessly switches to the next.
 
 ### 🌙 AMOLED Dark Theme
 Pure black (`#000000`) Material 3 interface designed for OLED screens — saves battery and looks stunning.
@@ -122,7 +122,7 @@ No analytics. No telemetry. No intermediary servers. Text is sent directly to th
 
 ## 🧩 Built-in Commands
 
-SwiftSlate ships with **9 commands** plus dynamic translation — ready to use out of the box:
+Rite ships with **9 commands** plus dynamic translation — ready to use out of the box:
 
 | Trigger | Action | Example |
 |:--------|:-------|:--------|
@@ -172,11 +172,11 @@ Use any standard language code with `?translate:XX`:
 > [!TIP]
 > The APK is only ~1.3 MB — lightweight with zero external dependencies for networking or JSON.
 
-**1.** Download the latest APK from the [**Releases**](https://github.com/Musheer360/SwiftSlate/releases/latest) page
+**1.** Download the latest APK from the [**Releases**](https://github.com/catamsp/Rite/releases/latest) page
 
 **2.** Install the APK on your device (allow installation from unknown sources if prompted)
 
-**3.** Open SwiftSlate and follow the setup below
+**3.** Open Rite and follow the setup below
 
 ### Setup in 3 Steps
 
@@ -197,7 +197,7 @@ Open the **Keys** tab, enter your API key. It's validated before saving. Add mul
 
 ♿ **Enable Service**
 
-On the **Dashboard**, tap **"Enable"** → find **"SwiftSlate Assistant"** in Accessibility Settings → toggle it on.
+On the **Dashboard**, tap **"Enable"** → find **"Rite Assistant"** in Accessibility Settings → toggle it on.
 
 </td>
 <td width="33%" align="center">
@@ -239,14 +239,14 @@ flowchart TD
 
 <br>
 
-1. **Event Listening** — SwiftSlate registers an Accessibility Service that listens for `TYPE_VIEW_TEXT_CHANGED` events across all apps
+1. **Event Listening** — Rite registers an Accessibility Service that listens for `TYPE_VIEW_TEXT_CHANGED` events across all apps
 2. **Fast Exit Optimization** — For performance, it first checks if the last character of typed text matches any known trigger's last character before doing a full scan
 3. **Longest Match** — When a potential match is found, it searches for the longest matching trigger at the end of the text
 4. **Text Extraction** — The text before the trigger is extracted and paired with the command's prompt
 5. **API Call** — The text + prompt is sent to the configured AI provider using the next available key in the round-robin rotation
 6. **Inline Spinner** — While waiting for the response, a spinner animation (`◐ ◓ ◑ ◒`) replaces the text to provide visual feedback
 7. **Text Replacement** — The AI response replaces the original text using `ACTION_SET_TEXT`
-8. **Fallback Strategy** — If `ACTION_SET_TEXT` fails (some apps don't support it), SwiftSlate falls back to a clipboard-based paste approach
+8. **Fallback Strategy** — If `ACTION_SET_TEXT` fails (some apps don't support it), Rite falls back to a clipboard-based paste approach
 
 </details>
 
@@ -280,12 +280,12 @@ Go beyond the built-ins — create your own trigger → prompt pairs in the **Co
 
 ## 🔑 API Key Management
 
-SwiftSlate supports multiple API keys with intelligent rotation:
+Rite supports multiple API keys with intelligent rotation:
 
 | Feature | Details |
 |:--------|:--------|
 | **Round-Robin Rotation** | Keys are used in turn to spread usage evenly across all configured keys |
-| **Rate-Limit Handling** | If a key gets rate-limited (HTTP 429), SwiftSlate tracks the cooldown and skips it automatically |
+| **Rate-Limit Handling** | If a key gets rate-limited (HTTP 429), Rite tracks the cooldown and skips it automatically |
 | **Invalid Key Detection** | Keys returning 403 errors are marked invalid and excluded from rotation |
 | **Encrypted Storage** | All keys encrypted with AES-256-GCM via Android Keystore before being saved locally |
 
@@ -296,7 +296,7 @@ SwiftSlate supports multiple API keys with intelligent rotation:
 
 ## 🖥️ App Screens
 
-SwiftSlate has **four screens** accessible via the bottom navigation bar:
+Rite has **four screens** accessible via the bottom navigation bar:
 
 <table>
 <tr>
@@ -348,9 +348,9 @@ SwiftSlate has **four screens** accessible via the bottom navigation bar:
 ## 🔒 Privacy & Security
 
 > [!NOTE]
-> SwiftSlate is built with privacy as a **core architectural principle**, not an afterthought.
+> Rite is built with privacy as a **core architectural principle**, not an afterthought.
 
-| | Concern | How SwiftSlate Handles It |
+| | Concern | How Rite Handles It |
 |:--|:--------|:------------------------|
 | 👁️ | **Text Monitoring** | Only processes text when a trigger command is detected at the end. All other typing is completely ignored. |
 | 📡 | **Data Transmission** | Text is sent **only** to the configured AI provider (Google Gemini or your custom endpoint). No other servers are ever contacted. |
@@ -378,7 +378,7 @@ SwiftSlate has **four screens** accessible via the bottom navigation bar:
 <tr><td><strong>Target SDK</strong></td><td>API 36</td></tr>
 </table>
 
-> **Zero third-party dependencies** for networking or JSON parsing — SwiftSlate uses only Android's built-in APIs.
+> **Zero third-party dependencies** for networking or JSON parsing — Rite uses only Android's built-in APIs.
 
 <br>
 
@@ -394,8 +394,8 @@ SwiftSlate has **four screens** accessible via the bottom navigation bar:
 
 ```bash
 # Clone the repository
-git clone https://github.com/Musheer360/SwiftSlate.git
-cd SwiftSlate
+git clone https://github.com/catamsp/Rite.git
+cd Rite
 
 # Build debug APK
 ./gradlew assembleDebug
@@ -427,8 +427,8 @@ Contributions are welcome! Here's how to get involved:
 
 ```bash
 # 1. Fork the repository, then:
-git clone https://github.com/YOUR_USERNAME/SwiftSlate.git
-cd SwiftSlate
+git clone https://github.com/YOUR_USERNAME/Rite.git
+cd Rite
 
 # 2. Create a feature branch
 git checkout -b feature/amazing-feature
@@ -462,9 +462,9 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 
 <br>
 
-Made with ❤️ by [**Musheer Alam**](https://github.com/Musheer360)
+Made with ❤️ by [**Musheer Alam**](https://github.com/catamsp)
 
-If SwiftSlate makes your typing life easier, consider giving it a ⭐
+If Rite makes your typing life easier, consider giving it a ⭐
 
 <br>
 

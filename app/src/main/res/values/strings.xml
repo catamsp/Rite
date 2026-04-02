@@ -1,5 +1,5 @@
-<resources>
-    <string name="app_name">SwiftSlate</string>
-    <string name="accessibility_service_label">SwiftSlate Assistant</string>
+﻿<resources>
+    <string name="app_name">Rite</string>
+    <string name="accessibility_service_label">Rite Assistant</string>
     <string name="accessibility_service_desc">Provides system-wide AI text replacements using Gemini when trigger commands are typed.</string>
 </resources>
