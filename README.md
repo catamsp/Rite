@@ -36,7 +36,7 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 </div>
 
 > [!NOTE]
-> **Rite works everywhere** — WhatsApp, Gmail, X, Messages, Notes, and Chrome. No copy-pasting. No app switching. Just type and let Rite handle the rest.
+> **Rite works in most apps** — WhatsApp, Gmail, Twitter/X, Messages, Notes, and more. No copy-pasting. No app switching. Just type and go. Some apps with custom input fields may not be supported.
 
 <br>
 
