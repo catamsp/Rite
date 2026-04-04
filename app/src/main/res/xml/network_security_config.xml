@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Enforce HTTPS for ALL connections by default -->
+    <base-config cleartextTrafficPermitted="false" />
+
+    <!--
+        NOTE: Certificate pinning should be configured once the exact
+        SHA-256 certificate pins are verified from the live server
+        certificates. Until then, HTTPS enforcement is active.
+
+        To add pinning later, run:
+            openssl s_client -servername generativelanguage.googleapis.com \
+                -connect generativelanguage.googleapis.com:443 2>/dev/null | \
+                openssl x509 -pubkey -noout | \
+                openssl rsa -pubin -outform der 2>/dev/null | \
+                openssl dgst -sha256 -binary | openssl enc -base64
+    -->
+</network-security-config>

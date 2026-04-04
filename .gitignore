@@ -1,0 +1,28 @@
+# Android IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+*.hprof
+
+# Gradle cache
+.gradle/
+
+# Generated files
+app/build/
+app/release/
+build/
+captures/
+.externalNativeBuild
+.cxx
+local.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# User-specific settings
+.vscode/
+*.keystore
+*.jks
+keystore.properties
