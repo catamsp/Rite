@@ -58,6 +58,22 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 
 <br>
 
+## 🎬 Demo
+
+### Screenshots
+
+<p align="center">
+  <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%201.jpg" width="32%" alt="Dashboard">
+  <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%202.jpg" width="32%" alt="Commands">
+  <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%203.jpg" width="32%" alt="Settings">
+</p>
+
+### Video
+
+<video src="https://github.com/catamsp/Rite/raw/main/demo/Video%201.mp4" controls muted loop width="100%"></video>
+
+<br>
+
 ## ⚡ Quick Demo
 
 ```text
