@@ -5,7 +5,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -31,9 +33,12 @@ fun SlateCard(
 fun ScreenTitle(title: String) {
     Text(
         text = title,
-        fontSize = 28.sp,
+        fontSize = 22.sp,
         fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(bottom = 24.dp)
+        color = Color.White,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
     )
 }

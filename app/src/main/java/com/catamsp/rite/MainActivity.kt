@@ -29,6 +29,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.catamsp.rite.ui.DashboardScreenPrototype
 import com.catamsp.rite.ui.CommandsScreen
 import com.catamsp.rite.ui.DashboardScreen
 import com.catamsp.rite.ui.KeysScreen
@@ -119,7 +120,7 @@ fun RiteMainScreen() {
             startDestination = Screen.Dashboard.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Dashboard.route) { DashboardScreen() }
+            composable(Screen.Dashboard.route) { DashboardScreenPrototype() }
             composable(Screen.Keys.route) { KeysScreen() }
             composable(Screen.Commands.route) { CommandsScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }

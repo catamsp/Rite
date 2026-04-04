@@ -4,12 +4,14 @@ import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -40,86 +42,118 @@ fun KeysScreen() {
     val customEndpoint = remember { prefs.getString("custom_endpoint", "") ?: "" }
     val customModel = remember { prefs.getString("custom_model", "") ?: "" }
 
+    val cardBg = Color(0xFF1C1C1E)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 16.dp)
             .padding(top = 24.dp)
     ) {
         ScreenTitle("API Keys")
 
-        SlateCard {
-            OutlinedTextField(
-                value = newKey,
-                onValueChange = { newKey = it },
-                label = { Text("API Key") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                OutlinedTextField(
+                    value = newKey,
+                    onValueChange = { newKey = it },
+                    label = { Text("API Key") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.White,
+                        unfocusedBorderColor = Color(0xFF3A3A3C)
+                    )
                 )
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = {
-                        if (newKey.isNotBlank()) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            isTesting = true
-                            testResult = null
-                            scope.launch {
-                                val trimmedKey = newKey.trim()
-                                if (keys.contains(trimmedKey)) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            if (newKey.isNotBlank()) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isTesting = true
+                                testResult = null
+                                scope.launch {
+                                    val trimmedKey = newKey.trim()
+                                    if (keys.contains(trimmedKey)) {
+                                        isTesting = false
+                                        testResult = "This key has already been added"
+                                        return@launch
+                                    }
+                                    val result = if (providerType == "custom" && customEndpoint.isNotBlank()) {
+                                        openAIClient.validateKey(trimmedKey, customEndpoint, customModel)
+                                    } else {
+                                        geminiClient.validateKey(trimmedKey)
+                                    }
                                     isTesting = false
-                                    testResult = "This key has already been added"
-                                    return@launch
-                                }
-                                val result = if (providerType == "custom" && customEndpoint.isNotBlank()) {
-                                    openAIClient.validateKey(trimmedKey, customEndpoint, customModel)
-                                } else {
-                                    geminiClient.validateKey(trimmedKey)
-                                }
-                                isTesting = false
-                                if (result.isSuccess) {
-                                    keyManager.addKey(trimmedKey)
-                                    keys = keyManager.getKeys()
-                                    newKey = ""
-                                    testResult = "Valid key added!"
-                                } else {
-                                    testResult = result.exceptionOrNull()?.message ?: "Validation failed"
+                                    if (result.isSuccess) {
+                                        keyManager.addKey(trimmedKey)
+                                        keys = keyManager.getKeys()
+                                        newKey = ""
+                                        testResult = "Valid key added!"
+                                    } else {
+                                        testResult = result.exceptionOrNull()?.message ?: "Validation failed"
+                                    }
                                 }
                             }
-                        }
-                    },
-                    enabled = newKey.isNotBlank() && !isTesting
-                ) {
-                    Text(if (isTesting) "Testing..." else "Add Key")
+                        },
+                        enabled = newKey.isNotBlank() && !isTesting,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                    ) {
+                        Text(if (isTesting) "Testing..." else "Add Key", color = Color.Black)
+                    }
                 }
-            }
-            if (testResult != null) {
-                Text(
-                    text = testResult!!,
-                    color = if (testResult!!.startsWith("Valid")) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
+                if (testResult != null) {
+                    Text(
+                        text = testResult!!,
+                        color = if (testResult!!.startsWith("Valid")) Color.White else Color(0xFF6E6E73),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
+            if (keys.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No keys yet",
+                            fontSize = 16.sp,
+                            color = Color(0xFF8E8E93)
+                        )
+                        Text(
+                            text = "Add one above to get started",
+                            fontSize = 13.sp,
+                            color = Color(0xFF8E8E93)
+                        )
+                    }
+                }
+            }
             items(keys) { key ->
-                SlateCard {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -127,8 +161,8 @@ fun KeysScreen() {
                             Text(
                                 text = "••••••••" + key.takeLast(6),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                fontSize = 14.sp,
+                                color = Color.White
                             )
                         }
                         IconButton(onClick = {
@@ -139,7 +173,7 @@ fun KeysScreen() {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Delete Key",
-                                tint = MaterialTheme.colorScheme.error
+                                tint = Color(0xFF8E8E93)
                             )
                         }
                     }
