@@ -486,7 +486,7 @@ Only when you type a trigger:
 
 <div align="center">
 
-Built by [**catamsp**](https://github.com/catamsp)
+Built by [**catamsp**](https://github.com/catamsp) · Vibe Coded 🎨
 
 Forked from [**SwiftSlate**](https://github.com/Musheer360) by [**Musheer Alam**](https://github.com/Musheer360)
 
