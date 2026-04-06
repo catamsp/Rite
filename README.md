@@ -301,7 +301,7 @@ Rite uses Android's Accessibility Service to read text fields. Most standard `Ed
 | Gmail, Outlook | ✅ Works | Standard input fields |
 | Google Messages, Samsung Messages | ✅ Works | Standard input fields |
 | Google Keep, Samsung Notes | ✅ Works | Standard input fields |
-| Chrome URL bar | ✅ Works | Standard input fields |
+| Chrome URL bar | ❌ Not work | idk |
 | **Some game chat boxes** | ❌ May not work | Custom input rendering |
 | **Apps with custom IME/keyboard** | ❌ May not work | Bypass accessibility text |
 | **Certain banking apps** | ❌ May not work | Enhanced security blocks |
