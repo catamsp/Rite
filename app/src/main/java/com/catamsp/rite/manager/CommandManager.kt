@@ -143,31 +143,34 @@ class CommandManager(context: Context) {
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
     }
 
-    /** Import commands from CSV lines. Returns Pair(importedCount, skippedCount). */
-    fun importCommands(lines: List<String>, existingTriggers: Set<String>): Pair<Int, Int> {
+    /** Import commands from CSV lines. Returns ImportResult with counts and skipped triggers. */
+    data class ImportResult(val imported: Int, val skipped: Int, val skippedTriggers: List<String>)
+
+    fun importCommands(lines: List<String>, existingTriggers: Set<String>): ImportResult {
         var imported = 0
         var skipped = 0
+        val skippedList = mutableListOf<String>()
         val prefix = getTriggerPrefix()
 
         for (line in lines) {
             val trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+            if (trimmed.isEmpty() || trimmed.startsWith("#") || trimmed.startsWith("trigger,")) continue
 
             // Split by comma but respect quotes
             val parts = parseCsvLine(trimmed)
-            if (parts.size < 2) { skipped++; continue }
+            if (parts.size < 2) { skipped++; skippedList.add("(invalid format)"); continue }
 
             val trigger = parts[0].trim()
             val prompt = parts.subList(1, parts.size).joinToString(",").trim()
 
-            if (trigger.isBlank() || prompt.isBlank()) { skipped++; continue }
-            if (!trigger.startsWith(prefix)) { skipped++; continue }
-            if (existingTriggers.contains(trigger)) { skipped++; continue }
+            if (trigger.isBlank() || prompt.isBlank()) { skipped++; skippedList.add(trigger.ifBlank { "(empty)" }); continue }
+            if (!trigger.startsWith(prefix)) { skipped++; skippedList.add(trigger); continue }
+            if (existingTriggers.contains(trigger)) { skipped++; skippedList.add(trigger); continue }
 
             addCustomCommand(Command(trigger, prompt, false))
             imported++
         }
-        return Pair(imported, skipped)
+        return ImportResult(imported, skipped, skippedList)
     }
 
     /** Parse a CSV line respecting quoted fields: "value,with,commas" */

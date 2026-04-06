@@ -63,9 +63,13 @@ fun CommandsScreen() {
                 } ?: emptyList()
 
                 val existingTriggers = allCommands.map { it.trigger }.toSet()
-                val (imported, skipped) = commandManager.importCommands(lines, existingTriggers)
+                val result = commandManager.importCommands(lines, existingTriggers)
                 allCommands = commandManager.getCommands()
-                importResult = "Imported $imported commands, $skipped skipped"
+
+                val skippedDetail = if (result.skippedTriggers.isNotEmpty()) {
+                    "\nSkipped: ${result.skippedTriggers.joinToString(", ")}"
+                } else ""
+                importResult = "Imported ${result.imported} commands, ${result.skipped} skipped$skippedDetail"
             } catch (e: Exception) {
                 importResult = "Import failed: ${e.message}"
             }
