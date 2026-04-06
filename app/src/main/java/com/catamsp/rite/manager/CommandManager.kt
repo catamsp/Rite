@@ -143,6 +143,70 @@ class CommandManager(context: Context) {
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
     }
 
+    /** Import commands from CSV lines. Returns Pair(importedCount, skippedCount). */
+    fun importCommands(lines: List<String>, existingTriggers: Set<String>): Pair<Int, Int> {
+        var imported = 0
+        var skipped = 0
+        val prefix = getTriggerPrefix()
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
+
+            // Split by comma but respect quotes
+            val parts = parseCsvLine(trimmed)
+            if (parts.size < 2) { skipped++; continue }
+
+            val trigger = parts[0].trim()
+            val prompt = parts.subList(1, parts.size).joinToString(",").trim()
+
+            if (trigger.isBlank() || prompt.isBlank()) { skipped++; continue }
+            if (!trigger.startsWith(prefix)) { skipped++; continue }
+            if (existingTriggers.contains(trigger)) { skipped++; continue }
+
+            addCustomCommand(Command(trigger, prompt, false))
+            imported++
+        }
+        return Pair(imported, skipped)
+    }
+
+    /** Parse a CSV line respecting quoted fields: "value,with,commas" */
+    private fun parseCsvLine(line: String): List<String> {
+        val result = mutableListOf<String>()
+        var current = StringBuilder()
+        var inQuotes = false
+
+        for (ch in line) {
+            when {
+                ch == '"' -> inQuotes = !inQuotes
+                ch == ',' && !inQuotes -> {
+                    result.add(current.toString().trim())
+                    current = StringBuilder()
+                }
+                else -> current.append(ch)
+            }
+        }
+        result.add(current.toString().trim())
+        return result
+    }
+
+    /** Export all custom commands as CSV string. */
+    fun exportCustomCommandsCsv(): String {
+        val sb = StringBuilder()
+        sb.append("trigger,prompt\n")
+        val customStr = prefs.getString("custom_commands", "[]") ?: "[]"
+        val arr = JSONArray(customStr)
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            val trigger = obj.getString("trigger")
+            val prompt = obj.getString("prompt")
+            // Quote prompt if it contains commas
+            val promptValue = if (prompt.contains(",")) "\"$prompt\"" else prompt
+            sb.append("$trigger,$promptValue\n")
+        }
+        return sb.toString()
+    }
+
     /** Check if trigger is properly preceded by a space (or is at start of text). */
     private fun hasValidSpacing(text: String, trigger: String): Boolean {
         val triggerStart = text.length - trigger.length

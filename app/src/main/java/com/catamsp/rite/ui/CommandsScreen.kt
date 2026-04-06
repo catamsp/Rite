@@ -1,5 +1,9 @@
 ﻿package com.catamsp.rite.ui
 
+import android.app.Activity
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,7 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +35,9 @@ import androidx.compose.ui.window.Dialog
 import com.catamsp.rite.manager.CommandManager
 import com.catamsp.rite.model.Command
 import com.catamsp.rite.ui.components.ScreenTitle
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 
 @Composable
 fun CommandsScreen() {
@@ -36,9 +45,48 @@ fun CommandsScreen() {
     val haptic = LocalHapticFeedback.current
     val commandManager = remember { CommandManager(context) }
     var allCommands by remember { mutableStateOf(commandManager.getCommands()) }
-    
+
     // Dialog state: null = closed, Pair = (isEdit, oldTrigger/null)
     var dialogState by remember { mutableStateOf<Pair<Boolean, String?>?>(null) }
+
+    // Import/Export
+    var importResult by remember { mutableStateOf<String?>(null) }
+    var showExportPicker by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val lines = context.contentResolver.openInputStream(uri)?.use { stream ->
+                    BufferedReader(InputStreamReader(stream)).readLines()
+                } ?: emptyList()
+
+                val existingTriggers = allCommands.map { it.trigger }.toSet()
+                val (imported, skipped) = commandManager.importCommands(lines, existingTriggers)
+                allCommands = commandManager.getCommands()
+                importResult = "Imported $imported commands, $skipped skipped"
+            } catch (e: Exception) {
+                importResult = "Import failed: ${e.message}"
+            }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val csv = commandManager.exportCustomCommandsCsv()
+                context.contentResolver.openOutputStream(uri)?.use { stream ->
+                    OutputStreamWriter(stream).use { it.write(csv) }
+                }
+                importResult = "Exported ${allCommands.count { !it.isBuiltIn }} commands"
+            } catch (e: Exception) {
+                importResult = "Export failed: ${e.message}"
+            }
+        }
+    }
 
     // Filter state
     var selectedFilter by remember { mutableStateOf("All") }
@@ -64,6 +112,14 @@ fun CommandsScreen() {
     val cardBg = Color(0xFF1C1C1E)
     val dimText = Color(0xFF8E8E93)
 
+    // Show import/export result as toast
+    importResult?.let { msg ->
+        LaunchedEffect(msg) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            // We'll show it inline instead of toast for simplicity
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -82,11 +138,25 @@ fun CommandsScreen() {
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
-            IconButton(onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                dialogState = Pair(false, null) // Open in Add mode
-            }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Command", tint = Color.White)
+            Row {
+                IconButton(onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    importLauncher.launch(arrayOf("text/*", "text/csv"))
+                }) {
+                    Icon(Icons.Default.Download, contentDescription = "Import CSV", tint = Color.White)
+                }
+                IconButton(onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showExportPicker = true
+                }) {
+                    Icon(Icons.Default.Share, contentDescription = "Export CSV", tint = Color.White)
+                }
+                IconButton(onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    dialogState = Pair(false, null)
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Command", tint = Color.White)
+                }
             }
         }
 
@@ -120,6 +190,58 @@ fun CommandsScreen() {
         }
 
         Spacer(modifier = Modifier.height(12.dp))
+
+        // Import/Export result banner
+        importResult?.let { msg ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = cardBg),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = msg, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { importResult = null }) {
+                        Text("Dismiss", color = dimText, fontSize = 12.sp)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Export dialog
+        if (showExportPicker) {
+            Dialog(onDismissRequest = { showExportPicker = false }) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text("Export Commands", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Choose where to save the CSV file.", fontSize = 14.sp, color = dimText)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { showExportPicker = false }) {
+                                Text("Cancel", color = dimText)
+                            }
+                            Button(
+                                onClick = {
+                                    showExportPicker = false
+                                    exportLauncher.launch("rite-commands.csv")
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                            ) {
+                                Text("Choose Location", color = Color.Black)
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // Command list
         LazyColumn(

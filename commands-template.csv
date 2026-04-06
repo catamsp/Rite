@@ -1,0 +1,28 @@
+# Rite — Custom Commands Template
+# Edit this file and import it via the Commands tab (📥 Import button)
+#
+# Format: trigger,prompt
+# - Triggers must start with your app's prefix (? by default)
+# - For apps: use app:com.package.name
+# - For calls: use tel:+countrycode+number
+# - For SMS: use sms:+countrycode+number
+# - For email: use mailto:user@example.com
+# - For URLs: use https://...
+# - If prompt contains commas, wrap it in quotes: "Fix grammar, spelling, and punctuation"
+#
+# Lines starting with # are comments and will be ignored during import.
+
+trigger,prompt
+?wp,app:com.whatsapp
+?ig,app:com.instagram.android
+?yt,app:com.google.android.youtube
+?tg,app:org.telegram.messenger
+?phone,tel:+919876543210
+?sms,sms:+919876543210
+?mail,mailto:user@example.com
+?google,https://google.com
+?poem,Convert this text into a short beautiful poem
+?summarize,Summarize the provided text concisely keeping all key points
+?translate:es,Translate the provided text to Spanish
+?translate:fr,Translate the provided text to French
+?code,Format and improve the provided code snippet
