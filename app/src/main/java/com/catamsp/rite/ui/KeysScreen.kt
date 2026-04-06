@@ -52,6 +52,31 @@ fun KeysScreen() {
     ) {
         ScreenTitle("API Keys")
 
+        // Warning when keystore is unavailable
+        if (!keyManager.isKeystoreAvailable) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF3E1C1C)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "⚠️ Security Warning",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFFFF6B6B)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Your device's security chip is unavailable. API keys cannot be stored safely on this device.",
+                        fontSize = 13.sp,
+                        color = Color(0xFFFFB3B3)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = cardBg),
@@ -94,10 +119,14 @@ fun KeysScreen() {
                                     }
                                     isTesting = false
                                     if (result.isSuccess) {
-                                        keyManager.addKey(trimmedKey)
-                                        keys = keyManager.getKeys()
-                                        newKey = ""
-                                        testResult = "Valid key added!"
+                                        val addResult = keyManager.addKey(trimmedKey)
+                                        if (addResult.isSuccess) {
+                                            keys = keyManager.getKeys()
+                                            newKey = ""
+                                            testResult = "Valid key added!"
+                                        } else {
+                                            testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
+                                        }
                                     } else {
                                         testResult = result.exceptionOrNull()?.message ?: "Validation failed"
                                     }

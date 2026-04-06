@@ -26,3 +26,6 @@ Thumbs.db
 *.keystore
 *.jks
 keystore.properties
+
+# Feature notes (not code)
+volume feature to be added.txt

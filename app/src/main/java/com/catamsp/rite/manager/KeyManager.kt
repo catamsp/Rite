@@ -29,6 +29,10 @@ class KeyManager(context: Context) {
     private val invalidKeys = mutableSetOf<String>()
     private val roundRobinIndex = AtomicInteger(0)
 
+    /** Whether the device's keystore is available for encryption/decryption. */
+    var isKeystoreAvailable: Boolean = false
+        private set
+
     init {
         try {
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
@@ -46,8 +50,10 @@ class KeyManager(context: Context) {
                 keyGenerator.init(keyGenParameterSpec)
                 keyGenerator.generateKey()
             }
+            isKeystoreAvailable = true
         } catch (e: Exception) {
-            e.printStackTrace()
+            isKeystoreAvailable = false
+            android.util.Log.e("Rite", "Keystore unavailable: ${e.message}")
         }
     }
 
@@ -125,13 +131,17 @@ class KeyManager(context: Context) {
         prefs.edit().putString(PREF_KEY_ARRAY, encryptedStr).apply()
     }
 
-    fun addKey(key: String) {
+    fun addKey(key: String): Result<Unit> {
+        if (!isKeystoreAvailable) {
+            return Result.failure(SecurityException("Device security chip unavailable. API keys cannot be stored safely on this device."))
+        }
         val keys = getKeys().toMutableList()
         if (!keys.contains(key)) {
             keys.add(key)
             saveKeys(keys)
         }
         invalidKeys.remove(key)
+        return Result.success(Unit)
     }
 
     fun removeKey(key: String) {

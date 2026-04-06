@@ -46,6 +46,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AssistantService : AccessibilityService() {
 
@@ -57,8 +58,7 @@ class AssistantService : AccessibilityService() {
     private val openAIClient = OpenAICompatibleClient()
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
-    @Volatile
-    private var isProcessing = false
+    private val isProcessing = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
     private var triggerLastChars = setOf<Char>()
     private var cachedPrefix = CommandManager.DEFAULT_PREFIX
@@ -86,10 +86,12 @@ class AssistantService : AccessibilityService() {
         const val TOAST_BOTTOM_MARGIN_DP = 64
         val TOAST_ANIM_DURATION_MS = 300L
         val TOAST_SLIDE_DISTANCE_DP = 40
+        const val AI_COMMAND_TIMEOUT_MS = 90_000L  // 90 seconds max for AI response
         // Note: uses "app:" not "app://" — matches findCommand + launchIntent
         val INTENT_PREFIXES = listOf("app:", "tel:", "sms:", "mailto:", "https://", "http://")
+        // Note: "undo" is NOT here — it's handled separately before the LOCAL_COMMANDS check
         val LOCAL_COMMANDS = setOf(
-            "undo", "cp", "ct", "pt", "del",
+            "cp", "ct", "pt", "del",
             "upper", "lower", "title",
             "date", "time", "count",
             "trim", "join", "split", "sort", "dedupe",
@@ -134,7 +136,7 @@ class AssistantService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) return
-        if (isProcessing) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: isProcessing=true"); return }
+        if (isProcessing.get()) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: isProcessing=true"); return }
 
         // Ignore the Rite app's own text fields — prevents intercepting command setup
         if (event.packageName == packageName) {
@@ -155,7 +157,7 @@ class AssistantService : AccessibilityService() {
         }
 
         val lastChar = text[text.length - 1]
-        val hasIntentPrefix = INTENT_PREFIXES.any { text.contains(it) }
+        val hasIntentPrefix = INTENT_PREFIXES.any { text.contains("${cachedPrefix}${it}") }
         if (!triggerLastChars.contains(lastChar)) {
             val hasTranslate = text.contains("${cachedPrefix}translate:") ||
                 text.contains("!translate:") ||
@@ -178,7 +180,7 @@ class AssistantService : AccessibilityService() {
         // ?undo — handled separately (no mode needed)
         if (command.trigger.endsWith("undo") && command.isBuiltIn) {
             if (source.isPassword) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: password field"); return }
-            isProcessing = true
+            isProcessing.set(true)
             currentJob?.cancel()
             handleUndo(source, cleanText)
             return
@@ -191,7 +193,7 @@ class AssistantService : AccessibilityService() {
         if (command.isBuiltIn && LOCAL_COMMANDS.contains(cmdName)) {
             if (source.isPassword) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: password field"); return }
             if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "HANDLING: local command '$cmdName'")
-            isProcessing = true
+            isProcessing.set(true)
             currentJob?.cancel()
             handleLocalCommand(source, cleanText, cmdName, mode)
             return
@@ -210,7 +212,7 @@ class AssistantService : AccessibilityService() {
         }
 
         if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "HANDLING: ${if (isIntent) "INTENT" else "AI"} command '${command.trigger}'")
-        isProcessing = true
+        isProcessing.set(true)
         currentJob?.cancel()
         processCommand(source, cleanText, command)
     }
@@ -222,7 +224,7 @@ class AssistantService : AccessibilityService() {
             currentJob = serviceScope.launch {
                 try {
                     withContext(Dispatchers.Main) {
-                        replaceText(source, text)
+                        replaceText(source, "")
                         launchIntent(command.prompt.trim())
                     }
                     performHapticFeedback(HapticFeedbackConstants.CONFIRM)
@@ -236,7 +238,7 @@ class AssistantService : AccessibilityService() {
                     showToast("Could not launch: ${e.message}")
                 } finally {
                     withContext(NonCancellable + Dispatchers.Main) {
-                        if (!handler.postDelayed({ isProcessing = false }, 500)) isProcessing = false
+                        isProcessing.set(false)
                     }
                 }
             }
@@ -254,7 +256,7 @@ class AssistantService : AccessibilityService() {
             endpoint = prefs.getString("custom_endpoint", "") ?: ""
             if (model.isBlank() || endpoint.isBlank()) {
                 serviceScope.launch { showToast("Custom provider not configured. Set endpoint and model in Settings.") }
-                isProcessing = false
+                isProcessing.set(false)
                 return
             }
         } else {
@@ -266,7 +268,7 @@ class AssistantService : AccessibilityService() {
             val originalText = text
             var spinnerJob: Job? = null
             try {
-                withTimeout(90_000) {
+                withTimeout(AI_COMMAND_TIMEOUT_MS) {
                     val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
                     var lastErrorMsg: String? = null
                     var succeeded = false
@@ -342,7 +344,7 @@ class AssistantService : AccessibilityService() {
             } finally {
                 withContext(NonCancellable + Dispatchers.Main) {
                     spinnerJob?.cancel()
-                    if (!handler.postDelayed({ isProcessing = false }, 500)) isProcessing = false
+                    isProcessing.set(false)
                 }
             }
         }
@@ -404,7 +406,7 @@ class AssistantService : AccessibilityService() {
                 showToast("Could not undo")
             } finally {
                 withContext(NonCancellable + Dispatchers.Main) {
-                    if (!handler.postDelayed({ isProcessing = false }, 500)) isProcessing = false
+                    isProcessing.set(false)
                 }
             }
         }
@@ -433,20 +435,7 @@ class AssistantService : AccessibilityService() {
                         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) showToast("Cut to clipboard")
                     }
                     "pt" -> {
-                        val clipboardText = getClipboardText()
-                        if (clipboardText.isEmpty()) {
-                            replaceText(source, cleanText)
-                            performHapticFeedback(HapticFeedbackConstants.REJECT)
-                            showToast("Clipboard is empty")
-                        } else {
-                            val result = when (mode) {
-                                CommandMode.REPLACE -> clipboardText
-                                CommandMode.APPEND -> if (cleanText.isEmpty()) clipboardText else "$cleanText$clipboardText"
-                                CommandMode.PREPEND -> if (cleanText.isEmpty()) clipboardText else "$clipboardText$cleanText"
-                            }
-                            replaceText(source, result)
-                            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                        }
+                        pasteFromClipboard(source, cleanText, mode)
                     }
                     "del" -> {
                         replaceText(source, "")
@@ -477,15 +466,21 @@ class AssistantService : AccessibilityService() {
                         performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     }
                     "count" -> {
-                        val words = cleanText.split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
-                        val info = "[${words} words | ${cleanText.length} chars]"
-                        val result = when (mode) {
-                            CommandMode.REPLACE -> "$cleanText  $info"
-                            CommandMode.APPEND -> if (cleanText.isEmpty()) info else "$cleanText  $info"
-                            CommandMode.PREPEND -> if (cleanText.isEmpty()) info else "$info  $cleanText"
+                        if (cleanText.isEmpty()) {
+                            replaceText(source, "")
+                            performHapticFeedback(HapticFeedbackConstants.REJECT)
+                            showToast("No text to count")
+                        } else {
+                            val words = cleanText.split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
+                            val info = "[${words} words | ${cleanText.length} chars]"
+                            val result = when (mode) {
+                                CommandMode.REPLACE -> "$cleanText  $info"
+                                CommandMode.APPEND -> "$cleanText  $info"
+                                CommandMode.PREPEND -> "$info  $cleanText"
+                            }
+                            replaceText(source, result)
+                            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                         }
-                        replaceText(source, result)
-                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     }
 
                     // ── Text transformations (mode applied) ────────────────────────
@@ -505,7 +500,9 @@ class AssistantService : AccessibilityService() {
                         performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     }
                     "trim" -> {
-                        val result = cleanText.trim().replace(Regex("\n{2,}"), "\n")
+                        val result = cleanText
+                            .replace(Regex("\\s+"), " ")  // Replace any whitespace sequence with single space
+                            .trim()
                         replaceText(source, applyMode(cleanText, result, mode))
                         performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     }
@@ -604,19 +601,82 @@ class AssistantService : AccessibilityService() {
                 showToast("Command failed")
             } finally {
                 withContext(NonCancellable + Dispatchers.Main) {
-                    if (!handler.postDelayed({ isProcessing = false }, 500)) isProcessing = false
+                    isProcessing.set(false)
                 }
             }
         }
     }
 
-    private fun getClipboardText(): String {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = clipboard.primaryClip
-        if (clip != null && clip.itemCount > 0) {
-            return clip.getItemAt(0).text?.toString() ?: ""
+    /**
+     * Paste clipboard content using Accessibility Service ACTION_PASTE.
+     * Works around Android 13+ clipboard restrictions for background services.
+     */
+    private fun pasteFromClipboard(
+        source: AccessibilityNodeInfo,
+        cleanText: String,
+        mode: CommandMode
+    ) {
+        handler.post {
+            try {
+                val textBeforePaste = source.text?.toString() ?: ""
+
+                when (mode) {
+                    CommandMode.REPLACE -> {
+                        // Clear text, then paste at start
+                        replaceTextSync(source, "")
+                        source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                    }
+                    CommandMode.APPEND -> {
+                        // Move cursor to end, then paste
+                        val textLen = source.text?.length ?: 0
+                        val selectionArgs = Bundle().apply {
+                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, textLen)
+                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, textLen)
+                        }
+                        source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
+                        source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                    }
+                    CommandMode.PREPEND -> {
+                        // Move cursor to start, then paste
+                        val selectionArgs = Bundle().apply {
+                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, 0)
+                        }
+                        source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
+                        source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                    }
+                }
+
+                // Check if paste actually added content
+                handler.postDelayed({
+                    source.refresh()
+                    val textAfter = source.text?.toString() ?: ""
+                    val isEmptyResult = when (mode) {
+                        CommandMode.REPLACE -> textAfter.isEmpty()
+                        CommandMode.APPEND, CommandMode.PREPEND -> textAfter == textBeforePaste
+                    }
+
+                    if (isEmptyResult) {
+                        // Clipboard was empty — restore original text
+                        replaceTextSync(source, cleanText)
+                        performHapticFeedback(HapticFeedbackConstants.REJECT)
+                        serviceScope.launch { showToast("Clipboard is empty") }
+                    } else {
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                    }
+                }, 300)
+            } catch (e: Exception) {
+                android.util.Log.e("Rite", "Paste failed: ${e.message}")
+                serviceScope.launch { showToast("Paste failed") }
+            }
         }
-        return ""
+    }
+
+    /** Synchronous text replacement (no coroutine needed, runs on main thread). */
+    private fun replaceTextSync(source: AccessibilityNodeInfo, newText: String) {
+        val bundle = Bundle()
+        bundle.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, newText)
+        source.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
     }
 
     private fun copyToClipboard(text: String) {
@@ -767,35 +827,31 @@ class AssistantService : AccessibilityService() {
     private fun performHapticFeedback(feedbackType: Int) {
         handler.post {
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                    val vibrator = vibratorManager.defaultVibrator
+                // Get appropriate vibrator for API level
+                val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    (getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager).defaultVibrator
+                } else {
+                    getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                }
+
+                // Create vibration effect based on feedback type
+                val effect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     when (feedbackType) {
-                        HapticFeedbackConstants.CONFIRM ->
-                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
-                        HapticFeedbackConstants.REJECT ->
-                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK))
-                    }
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    @Suppress("DEPRECATION")
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                    when (feedbackType) {
-                        HapticFeedbackConstants.CONFIRM ->
-                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
-                        HapticFeedbackConstants.REJECT ->
-                            vibrator.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK))
+                        HapticFeedbackConstants.CONFIRM -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
+                        HapticFeedbackConstants.REJECT -> VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
+                        else -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
                     }
                 } else {
-                    @Suppress("DEPRECATION")
-                    val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-                    vibrator.vibrate(50)
+                    VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
                 }
+
+                vibrator.vibrate(effect)
             } catch (_: Exception) {}
         }
     }
 
     override fun onInterrupt() {
-        isProcessing = false
+        isProcessing.set(false)
         currentJob?.cancel()
     }
 
