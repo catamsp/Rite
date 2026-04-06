@@ -195,7 +195,7 @@ class AssistantService : AccessibilityService() {
             if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "HANDLING: local command '$cmdName'")
             isProcessing.set(true)
             currentJob?.cancel()
-            handleLocalCommand(source, cleanText, cmdName, mode)
+            handleLocalCommand(source, cleanText, cmdName, mode, command.trigger)
             return
         }
 
@@ -416,7 +416,8 @@ class AssistantService : AccessibilityService() {
         source: AccessibilityNodeInfo,
         cleanText: String,
         commandName: String,
-        mode: CommandMode = CommandMode.REPLACE
+        mode: CommandMode = CommandMode.REPLACE,
+        trigger: String = ""
     ) {
         currentJob = serviceScope.launch {
             try {
@@ -435,7 +436,7 @@ class AssistantService : AccessibilityService() {
                         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S_V2) showToast("Cut to clipboard")
                     }
                     "pt" -> {
-                        pasteFromClipboard(source, cleanText, mode)
+                        pasteFromClipboard(source, cleanText, mode, trigger)
                     }
                     "del" -> {
                         replaceText(source, "")
@@ -610,65 +611,90 @@ class AssistantService : AccessibilityService() {
     /**
      * Paste clipboard content using Accessibility Service ACTION_PASTE.
      * Works around Android 13+ clipboard restrictions for background services.
+     * @param trigger The trigger string (e.g., "?pt", "+pt") to be removed before pasting.
      */
     private fun pasteFromClipboard(
         source: AccessibilityNodeInfo,
         cleanText: String,
-        mode: CommandMode
+        mode: CommandMode,
+        trigger: String
     ) {
         handler.post {
             try {
                 val textBeforePaste = source.text?.toString() ?: ""
 
-                when (mode) {
-                    CommandMode.REPLACE -> {
-                        // Clear text, then paste at start
-                        replaceTextSync(source, "")
-                        source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                    }
-                    CommandMode.APPEND -> {
-                        // Move cursor to end, then paste
-                        val textLen = source.text?.length ?: 0
-                        val selectionArgs = Bundle().apply {
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, textLen)
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, textLen)
-                        }
-                        source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
-                        source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                    }
-                    CommandMode.PREPEND -> {
-                        // Move cursor to start, then paste
-                        val selectionArgs = Bundle().apply {
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
-                            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, 0)
-                        }
-                        source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
-                        source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                    }
+                // 1. Remove the trigger from the text field to prevent loops/leftovers
+                if (textBeforePaste.endsWith(trigger)) {
+                    val textWithoutTrigger = textBeforePaste.substring(0, textBeforePaste.length - trigger.length)
+                    replaceTextSync(source, textWithoutTrigger)
+                    
+                    // 2. Delay paste to ensure field updated
+                    handler.postDelayed({
+                        source.refresh()
+                        performPasteAction(source, mode, textWithoutTrigger)
+                    }, 100)
+                } else {
+                    // Fallback if trigger somehow not found (shouldn't happen)
+                    performPasteAction(source, mode, textBeforePaste)
                 }
-
-                // Check if paste actually added content
-                handler.postDelayed({
-                    source.refresh()
-                    val textAfter = source.text?.toString() ?: ""
-                    val isEmptyResult = when (mode) {
-                        CommandMode.REPLACE -> textAfter.isEmpty()
-                        CommandMode.APPEND, CommandMode.PREPEND -> textAfter == textBeforePaste
-                    }
-
-                    if (isEmptyResult) {
-                        // Clipboard was empty — restore original text
-                        replaceTextSync(source, cleanText)
-                        performHapticFeedback(HapticFeedbackConstants.REJECT)
-                        serviceScope.launch { showToast("Clipboard is empty") }
-                    } else {
-                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                    }
-                }, 300)
             } catch (e: Exception) {
                 android.util.Log.e("Rite", "Paste failed: ${e.message}")
                 serviceScope.launch { showToast("Paste failed") }
             }
+        }
+    }
+
+    /** Helper to perform the actual paste action based on mode */
+    private fun performPasteAction(source: AccessibilityNodeInfo, mode: CommandMode, textBeforePaste: String) {
+        try {
+            when (mode) {
+                CommandMode.REPLACE -> {
+                    // Select all text and paste (replaces content)
+                    val textLen = source.text?.length ?: 0
+                    val selectionArgs = Bundle().apply {
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, textLen)
+                    }
+                    source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
+                    source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                }
+                CommandMode.APPEND -> {
+                    // Move cursor to end, then paste
+                    val textLen = source.text?.length ?: 0
+                    val selectionArgs = Bundle().apply {
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, textLen)
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, textLen)
+                    }
+                    source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
+                    source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                }
+                CommandMode.PREPEND -> {
+                    // Move cursor to start, then paste
+                    val selectionArgs = Bundle().apply {
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, 0)
+                    }
+                    source.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selectionArgs)
+                    source.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                }
+            }
+            
+            // Check if paste worked
+            handler.postDelayed({
+                source.refresh()
+                val textAfter = source.text?.toString() ?: ""
+                
+                // If text didn't change, clipboard was likely empty or paste failed
+                if (textAfter == textBeforePaste) {
+                    serviceScope.launch { showToast("Clipboard is empty") }
+                    performHapticFeedback(HapticFeedbackConstants.REJECT)
+                } else {
+                    performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                }
+            }, 300)
+        } catch (e: Exception) {
+            android.util.Log.e("Rite", "Paste action failed: ${e.message}")
+            serviceScope.launch { showToast("Paste failed") }
         }
     }
 
