@@ -6,7 +6,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
-    <!-- Required on Android 11+ to launch other apps by package name -->
+    <!-- Required on Android 11+ to launch third-party apps via intent commands (e.g., ?wp -> WhatsApp) -->
+    <!-- Without this, getLaunchIntentForPackage() returns null for all non-system apps -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 

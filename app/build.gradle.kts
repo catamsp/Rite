@@ -13,8 +13,8 @@ android {
         applicationId = "com.catamsp.rite"
         minSdk = 23
         targetSdk = 36
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 2
-        versionName = (project.findProperty("versionName") as String?) ?: "$baseVersion"
+        versionCode = 2
+        versionName = "2.0.1"
 
         vectorDrawables {
             useSupportLibrary = true

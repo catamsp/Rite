@@ -15,6 +15,7 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 <br>
 
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#-getting-started)
+[![F-Droid](https://img.shields.io/f-droid/v/com.catamsp.rite?style=for-the-badge&label=F-Droid&logo=fdroid&logoColor=white)](https://f-droid.org/packages/com.catamsp.rite)
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#%EF%B8%8F-tech-stack)
 [![Gemini](https://img.shields.io/badge/Gemini_AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-ai-providers)
 [![OpenAI](https://img.shields.io/badge/OpenAI_Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](#-ai-providers)
@@ -337,6 +338,12 @@ Rite uses Android's Accessibility Service to read text fields. Most standard `Ed
 
 ### Installation
 
+#### Option A: F-Droid (Recommended for Open Source Users)
+1. Install the [**F-Droid**](https://f-droid.org/) client on your device
+2. Search for **Rite** or visit [f-droid.org/packages/com.catamsp.rite](https://f-droid.org/packages/com.catamsp.rite)
+3. Tap **Install** → F-Droid handles all building and signing automatically
+
+#### Option B: GitHub Releases
 **1.** Download the latest APK from [**Releases**](https://github.com/catamsp/Rite/releases/latest)
 
 **2.** Install the APK on your Android device
