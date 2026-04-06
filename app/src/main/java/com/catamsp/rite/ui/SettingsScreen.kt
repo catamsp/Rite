@@ -1,10 +1,12 @@
 ﻿package com.catamsp.rite.ui
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -122,24 +124,38 @@ fun SettingsScreen() {
 
         // ── Trigger Prefix (read-only) ─────────────────────
         SettingsCard(cardBg) {
-            SettingsLabel("Trigger Prefix")
+            SettingsLabel("Trigger Prefixes")
             Spacer(modifier = Modifier.height(4.dp))
-            Text("The symbol that starts all commands. Set at first launch.", fontSize = 12.sp, color = Color(0xFF8E8E93))
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
-                modifier = Modifier
-                    .padding(8.dp)
-                    .height(40.dp)
-                    .width(40.dp)
-                    .fillMaxWidth()
+            Text("The symbols that start commands. Base prefix is set at first launch.", fontSize = 12.sp, color = Color(0xFF8E8E93))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = currentPrefix,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
+                listOf(
+                    currentPrefix to "Replace",
+                    "!" to "Append",
+                    "+" to "Prepend"
+                ).forEach { (prefix, mode) ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF3A3A3C))
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = prefix,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = mode, fontSize = 11.sp, color = Color(0xFF8E8E93))
+                    }
+                }
             }
         }
 
