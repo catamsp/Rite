@@ -301,7 +301,9 @@ Rite uses Android's Accessibility Service to read text fields. Most standard `Ed
 | Gmail, Outlook | ✅ Works | Standard input fields |
 | Google Messages, Samsung Messages | ✅ Works | Standard input fields |
 | Google Keep, Samsung Notes | ✅ Works | Standard input fields |
-| Chrome URL bar | ✅ Works | Standard input fields |
+| Google | ✅ Works | Standard input fields |
+| App Drawer | ✅ Works | Standard input fields |
+| Chrome URL bar | ❌ Not work | idk |
 | **Some game chat boxes** | ❌ May not work | Custom input rendering |
 | **Apps with custom IME/keyboard** | ❌ May not work | Bypass accessibility text |
 | **Certain banking apps** | ❌ May not work | Enhanced security blocks |
@@ -523,7 +525,6 @@ Only when you type a trigger:
 
 - Original Accessibility Service-based text transformation
 - Google Gemini API integration
-- Basic local commands (copy, cut, paste, delete)
 - API key encryption via Android Keystore
 - Custom command support
 
