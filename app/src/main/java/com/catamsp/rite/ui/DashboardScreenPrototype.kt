@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -194,8 +195,8 @@ fun DashboardScreenPrototype() {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     text = when (keyCount) {
-                        0 -> "No brain cells yet"
-                        1 -> "1 brain cell active"
+                        0 -> "No Brain cells yet"
+                        1 -> "1 Brain cell active"
                         else -> "$keyCount brain cells firing"
                     },
                     fontSize = 17.sp,
@@ -203,11 +204,72 @@ fun DashboardScreenPrototype() {
                     color = Color.White
                 )
                 Text(
-                    text = if (keyCount == 0) "I'm running on fumes. Feed me API keys." else "Round-robin mode, baby.",
+                    text = if (keyCount == 0) "I'm running on fumes. Feed me API keys." else "Feed me more API keys.",
                     fontSize = 13.sp,
                     color = dimText,
                     modifier = Modifier.padding(top = 4.dp)
                 )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // ── Key Status Card ─────────────────────────────────
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "API Key Status",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val statuses = keyManager.getKeyStatuses()
+                if (statuses.isEmpty()) {
+                    Text(
+                        text = "No keys added yet",
+                        fontSize = 13.sp,
+                        color = dimText
+                    )
+                } else {
+                    statuses.forEach { status ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            if (status.isReady) Color.White else Color(0xFF636366),
+                                            shape = RoundedCornerShape(4.dp)
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "••••${status.maskedKey.takeLast(4)}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            }
+                            Text(
+                                text = if (status.isReady) "Alive" else "Resting (${(status.remainingMs!! / 1000L) + 1}s)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (status.isReady) Color.White else Color(0xFF8E8E93)
+                            )
+                        }
+                    }
+                }
             }
         }
 

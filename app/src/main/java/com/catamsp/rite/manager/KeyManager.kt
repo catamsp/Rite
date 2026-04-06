@@ -190,4 +190,20 @@ class KeyManager(context: Context) {
             }
         return waits.minOrNull()
     }
+
+    data class KeyStatus(val maskedKey: String, val isReady: Boolean, val remainingMs: Long?)
+
+    fun getKeyStatuses(): List<KeyStatus> {
+        val keys = getKeys()
+        val now = System.currentTimeMillis()
+        return keys.map { key ->
+            val limitTime = rateLimitedKeys[key] ?: 0L
+            val remaining = if (limitTime > now) limitTime - now else 0L
+            KeyStatus(
+                maskedKey = key,
+                isReady = limitTime <= now && !invalidKeys.contains(key),
+                remainingMs = if (limitTime > now) remaining else null
+            )
+        }
+    }
 }

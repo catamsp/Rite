@@ -125,6 +125,24 @@ class CommandManager(context: Context) {
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
     }
 
+    fun updateCustomCommand(oldTrigger: String, newCommand: Command) {
+        val customStr = prefs.getString("custom_commands", "[]") ?: "[]"
+        val arr = JSONArray(customStr)
+        val newArr = JSONArray()
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            if (obj.getString("trigger") == oldTrigger) {
+                val newObj = JSONObject()
+                newObj.put("trigger", newCommand.trigger)
+                newObj.put("prompt", newCommand.prompt)
+                newArr.put(newObj)
+            } else {
+                newArr.put(obj)
+            }
+        }
+        prefs.edit().putString("custom_commands", newArr.toString()).apply()
+    }
+
     /** Check if trigger is properly preceded by a space (or is at start of text). */
     private fun hasValidSpacing(text: String, trigger: String): Boolean {
         val triggerStart = text.length - trigger.length

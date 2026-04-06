@@ -56,7 +56,7 @@ fun KeysScreen() {
         if (!keyManager.isKeystoreAvailable) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF3E1C1C)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C2E)),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -64,13 +64,13 @@ fun KeysScreen() {
                         text = "⚠️ Security Warning",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = Color(0xFFFF6B6B)
+                        color = Color(0xFFEBEBF5)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Your device's security chip is unavailable. API keys cannot be stored safely on this device.",
                         fontSize = 13.sp,
-                        color = Color(0xFFFFB3B3)
+                        color = Color(0xFF8E8E93)
                     )
                 }
             }

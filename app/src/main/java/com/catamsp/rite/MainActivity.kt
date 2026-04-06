@@ -22,6 +22,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
@@ -80,6 +82,8 @@ fun RiteMainScreen() {
     val navController = rememberNavController()
     val items = listOf(Screen.Dashboard, Screen.Keys, Screen.Commands, Screen.Settings)
     val haptic = LocalHapticFeedback.current
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -87,9 +91,6 @@ fun RiteMainScreen() {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.background
             ) {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
-
                 items.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = screen.title) },

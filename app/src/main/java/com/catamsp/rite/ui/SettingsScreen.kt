@@ -241,6 +241,7 @@ private fun monofieldColors() = OutlinedTextFieldDefaults.colors(
 private fun SettingsCard(cardBg: Color, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(
