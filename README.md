@@ -523,7 +523,6 @@ Only when you type a trigger:
 
 - Original Accessibility Service-based text transformation
 - Google Gemini API integration
-- Basic local commands (copy, cut, paste, delete)
 - API key encryption via Android Keystore
 - Custom command support
 
