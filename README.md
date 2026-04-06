@@ -8,7 +8,7 @@
 
 # Rite
 
-### System-wide AI & Utility Text Assistant for Android
+### System-wide Text Utility Tool for Android
 
 Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any app, and watch it transform — instantly.
 

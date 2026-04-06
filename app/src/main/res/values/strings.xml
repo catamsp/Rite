@@ -1,5 +1,5 @@
 ﻿<resources>
     <string name="app_name">Rite</string>
     <string name="accessibility_service_label">Rite Assistant</string>
-    <string name="accessibility_service_desc">Provides system-wide AI text replacements using various providers (Gemini, OpenAI, etc.) when trigger commands are typed.</string>
+    <string name="accessibility_service_desc">Provides system-wide text utilities including local transformations (case, clipboard, formatting) and optional AI-powered replacements (Gemini, OpenAI, etc.) when trigger commands are typed.</string>
 </resources>
