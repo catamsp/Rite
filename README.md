@@ -35,6 +35,8 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 
 > [!NOTE]
 > **Rite works in most apps** — WhatsApp, Gmail, Twitter/X, Messages, Notes, and more. No copy-pasting. No app switching. Just type and go. See [Known Limitations](#-known-limitations) for cases where it may not work.
+>
+> **Trigger Rule:** Commands must be preceded by a space. Type `hello ?fix` ✅, not `hello?fix` ❌. This prevents accidental triggers while typing normal text.
 
 <br>
 
@@ -61,6 +63,9 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 ## 🎬 Demo
 
 ### Screenshots
+
+> [!NOTE]
+> Screenshots may not reflect the latest UI updates including the monochrome theme, API Key Status card, and Commands screen refactor.
 
 <p align="center">
   <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%201.jpg" width="32%" alt="Dashboard">
@@ -118,6 +123,12 @@ Use **Google Gemini** or connect **any OpenAI-compatible API** (OpenAI, Claude, 
 
 ### 📱 Launch Apps & Actions
 Open apps, make calls, send SMS, compose emails, and visit URLs — all by typing a trigger.
+
+### 📊 Real-Time Key Status
+Dashboard shows which API keys are active ("Alive") and which are cooling down ("Resting") with live countdown timers.
+
+### 🎨 Filtered Commands Tab
+Browse commands with filter chips (All / AI / Local / Action). Add and edit custom commands via a clean popup dialog.
 
 ### 🔒 Privacy-First Design
 Zero telemetry. Zero analytics. API keys encrypted in Android Keystore. All network traffic forced HTTPS.
@@ -264,10 +275,14 @@ Works with **all** AI and local commands.
 Create your own trigger → prompt pairs in the **Commands** tab:
 
 1. Open Rite → go to **Commands** tab
-2. Enter a **Trigger** (e.g., `?poem`)
-3. Enter a **Prompt** (e.g., `Convert this text into a short beautiful poem`)
-4. Tap **Add Command**
+2. Tap the **`+`** icon in the top-right corner
+3. Enter a **Trigger** (e.g., `?poem`) and a **Prompt** (e.g., `Convert this text into a short beautiful poem`)
+4. Tap **Save**
 5. Use it anywhere: type your text ending with `?poem`
+
+**Filter your commands** using the chips at the top: **All** · **AI** · **Local** · **Action**
+
+**Edit or delete** custom commands using the ✏️ and 🗑️ icons next to each entry.
 
 **Custom intent commands** let you launch apps, make calls, etc. by setting the prompt to `app:com.package`, `tel:number`, `sms:number`, `mailto:email`, or `https://url`.
 
@@ -429,6 +444,31 @@ Only when you type a trigger:
 <br>
 
 ## 📝 Changelog
+
+### v2.0.1 — UI Polish & Reliability
+
+#### New Features
+- **API Key Status card** — Dashboard now shows each key's status ("Alive" or "Resting") with live countdown timers for rate-limited keys
+- **Filtered Commands tab** — Filter commands by type: All · AI · Local · Action using scrollable filter chips
+- **Edit custom commands** — Tap the ✏️ icon to edit any custom command's trigger and prompt
+- **Popup dialog for commands** — Add and edit commands via a clean popup dialog instead of a permanent form
+
+#### Bug Fixes
+- **Space-before-trigger requirement** — Commands now require a space before the trigger (e.g., `hello ?fix`) to prevent accidental triggers during normal typing
+- **Paste command for Android 13+** — `?pt` now uses `ACTION_PASTE` instead of reading clipboard directly, bypassing Android 13+ clipboard restrictions
+- **Race condition in `isProcessing`** — Replaced `@Volatile` with `AtomicBoolean` to prevent text corruption during rapid commands
+- **Intent command text clearing** — Launching an intent now clears the text field instead of leaving leftover text
+- **`?trim` whitespace handling** — Now handles all whitespace (spaces, tabs, newlines), not just multiple newlines
+- **`?count` on empty text** — Shows "No text to count" instead of `[0 words | 0 chars]`
+- **Keystore failure handling** — App now shows a friendly warning instead of crashing when device security chip is unavailable
+- **Vibration code cleanup** — Removed duplicated API-level branches for cleaner haptic feedback
+
+#### UI/UX Improvements
+- **Monochrome theme** — Unified card colors across all screens; replaced colored indicators with white/grey monochrome
+- **Commands screen redesign** — Compact list view with type badges, filter chips, and inline edit/delete actions
+- **Settings card colors fixed** — All Settings cards now match the dark monochrome theme
+
+---
 
 ### v2.0 — Current
 
