@@ -1,4 +1,4 @@
-﻿package com.catamsp.rite.ui
+package com.catamsp.rite.ui
 
 import android.app.Activity
 import android.content.Intent
@@ -32,47 +32,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.catamsp.rite.manager.CommandManager
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.model.Command
 import com.catamsp.rite.ui.components.ScreenTitle
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
+import com.catamsp.rite.viewmodel.CommandsViewModel
 
 @Composable
-fun CommandsScreen() {
+fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val commandManager = remember { CommandManager(context) }
-    var allCommands by remember { mutableStateOf(commandManager.getCommands()) }
+    
+    val allCommands by viewModel.allCommands.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val currentPrefix by viewModel.triggerPrefix.collectAsState()
+    val importResult by viewModel.importResult.collectAsState()
 
     // Dialog state: null = closed, Pair = (isEdit, oldTrigger/null)
     var dialogState by remember { mutableStateOf<Pair<Boolean, String?>?>(null) }
 
-    // Import/Export
-    var importResult by remember { mutableStateOf<String?>(null) }
+    // Export state
     var showExportPicker by remember { mutableStateOf(false) }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            try {
-                val lines = context.contentResolver.openInputStream(uri)?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).readLines()
-                } ?: emptyList()
-
-                val existingTriggers = allCommands.map { it.trigger }.toSet()
-                val result = commandManager.importCommands(lines, existingTriggers)
-                allCommands = commandManager.getCommands()
-
-                val skippedDetail = if (result.skippedTriggers.isNotEmpty()) {
-                    "\nSkipped: ${result.skippedTriggers.joinToString(", ")}"
-                } else ""
-                importResult = "Imported ${result.imported} commands, ${result.skipped} skipped$skippedDetail"
-            } catch (e: Exception) {
-                importResult = "Import failed: ${e.message}"
-            }
+            viewModel.importCommands(uri, context.contentResolver)
         }
     }
 
@@ -80,23 +65,33 @@ fun CommandsScreen() {
         contract = ActivityResultContracts.CreateDocument("text/csv")
     ) { uri ->
         if (uri != null) {
-            try {
-                val csv = commandManager.exportCustomCommandsCsv()
-                context.contentResolver.openOutputStream(uri)?.use { stream ->
-                    OutputStreamWriter(stream).use { it.write(csv) }
-                }
-                importResult = "Exported ${allCommands.count { !it.isBuiltIn }} commands"
-            } catch (e: Exception) {
-                importResult = "Export failed: ${e.message}"
-            }
+            viewModel.exportCommands(uri, context.contentResolver)
         }
     }
 
     // Filter state
     var selectedFilter by remember { mutableStateOf("All") }
-    val filters = listOf("All", "AI", "Local", "Action")
+    val filters = remember { listOf("All", "AI", "Local", "Action") }
 
-    // Determine command type
+    // Filter commands - using derivedStateOf to prevent recalculation on unrelated state changes
+    val filteredCommands by remember {
+        derivedStateOf {
+            if (selectedFilter == "All") allCommands
+            else allCommands.filter { cmd ->
+                val type = if (cmd.isBuiltIn) {
+                    val localSet = setOf("cp", "ct", "pt", "del", "upper", "lower", "title", "date", "time", "count", "trim", "join", "split", "sort", "dedupe", "upside", "mirror", "bold", "italic", "rot13", "md5", "reverse", "undo")
+                    val name = cmd.trigger.removePrefix("?").removePrefix("!").removePrefix("+")
+                    if (localSet.contains(name)) "Local" else "AI"
+                } else {
+                    val p = cmd.prompt.trimStart()
+                    if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
+                }
+                type == selectedFilter
+            }
+        }
+    }
+
+    // Helper to get command type for display in the list
     fun getCommandType(cmd: Command): String {
         if (cmd.isBuiltIn) {
             val localSet = setOf("cp", "ct", "pt", "del", "upper", "lower", "title", "date", "time", "count", "trim", "join", "split", "sort", "dedupe", "upside", "mirror", "bold", "italic", "rot13", "md5", "reverse", "undo")
@@ -107,12 +102,6 @@ fun CommandsScreen() {
         return if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
     }
 
-    // Filter commands
-    val filteredCommands = allCommands.filter { cmd ->
-        if (selectedFilter == "All") true else getCommandType(cmd) == selectedFilter
-    }
-
-    val prefix = commandManager.getTriggerPrefix()
     val cardBg = Color(0xFF1C1C1E)
     val dimText = Color(0xFF8E8E93)
 
@@ -120,7 +109,6 @@ fun CommandsScreen() {
     importResult?.let { msg ->
         LaunchedEffect(msg) {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            // We'll show it inline instead of toast for simplicity
         }
     }
 
@@ -208,7 +196,7 @@ fun CommandsScreen() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(text = msg, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { importResult = null }) {
+                    TextButton(onClick = { viewModel.clearImportResult() }) {
                         Text("Dismiss", color = dimText, fontSize = 12.sp)
                     }
                 }
@@ -252,7 +240,7 @@ fun CommandsScreen() {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            if (filteredCommands.isEmpty()) {
+            if (filteredCommands.isEmpty() && !isLoading) {
                 item {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
@@ -260,6 +248,12 @@ fun CommandsScreen() {
                     ) {
                         Text(text = "No commands", fontSize = 16.sp, color = dimText)
                         Text(text = "Tap + to add one", fontSize = 13.sp, color = dimText)
+                    }
+                }
+            } else if (isLoading) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
                     }
                 }
             }
@@ -310,8 +304,7 @@ fun CommandsScreen() {
                             Row {
                                 IconButton(onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    commandManager.removeCustomCommand(cmd.trigger)
-                                    allCommands = commandManager.getCommands()
+                                    viewModel.removeCommand(cmd.trigger)
                                 }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = dimText)
                                 }
@@ -339,7 +332,7 @@ fun CommandsScreen() {
         } else ""
 
         CommandDialog(
-            prefix = prefix,
+            prefix = currentPrefix,
             isEdit = isEdit,
             initialTrigger = initialTrigger,
             initialPrompt = initialPrompt,
@@ -348,11 +341,10 @@ fun CommandsScreen() {
             onSave = { trigger, prompt ->
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 if (isEdit && oldTrigger != null) {
-                    commandManager.updateCustomCommand(oldTrigger, Command(trigger, prompt, false))
+                    viewModel.updateCommand(oldTrigger, Command(trigger, prompt, false))
                 } else {
-                    commandManager.addCustomCommand(Command(trigger, prompt, false))
+                    viewModel.addCommand(Command(trigger, prompt, false))
                 }
-                allCommands = commandManager.getCommands()
                 dialogState = null
             }
         )

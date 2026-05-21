@@ -18,25 +18,24 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.catamsp.rite.manager.CommandManager
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
-    val context = LocalContext.current
+fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val haptic = LocalHapticFeedback.current
-    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
-    val commandManager = remember { CommandManager(context) }
-    val currentPrefix = remember { commandManager.getTriggerPrefix() }
-
-    var providerType by remember { mutableStateOf(prefs.getString("provider_type", "gemini") ?: "gemini") }
+    
+    val providerType by viewModel.providerType.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
+    val customEndpoint by viewModel.customEndpoint.collectAsState()
+    val customModel by viewModel.customModel.collectAsState()
+    val triggerPrefix by viewModel.triggerPrefix.collectAsState()
+    
     var providerExpanded by remember { mutableStateOf(false) }
-    var selectedModel by remember { mutableStateOf(prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite") }
     var modelExpanded by remember { mutableStateOf(false) }
     val geminiModels = listOf("gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-3.1-flash-lite")
-    var customEndpoint by remember { mutableStateOf(prefs.getString("custom_endpoint", "") ?: "") }
-    var customModel by remember { mutableStateOf(prefs.getString("custom_model", "") ?: "") }
 
     val cardBg = Color(0xFF1C1C1E)
 
@@ -64,7 +63,8 @@ fun SettingsScreen() {
                     listOf("gemini" to "Google Gemini", "custom" to "Custom (OpenAI Compatible)").forEach { (key, label) ->
                         DropdownMenuItem(text = { Text(label) }, onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            providerType = key; prefs.edit().putString("provider_type", key).apply(); providerExpanded = false
+                            viewModel.updateProviderType(key)
+                            providerExpanded = false
                         })
                     }
                 }
@@ -88,7 +88,8 @@ fun SettingsScreen() {
                         geminiModels.forEach { model ->
                             DropdownMenuItem(text = { Text(model) }, onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                selectedModel = model; prefs.edit().putString("model", model).apply(); modelExpanded = false
+                                viewModel.updateSelectedModel(model)
+                                modelExpanded = false
                             })
                         }
                     }
@@ -101,7 +102,7 @@ fun SettingsScreen() {
                 Text("Base URL of the OpenAI-compatible API", fontSize = 12.sp, color = Color(0xFF8E8E93))
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = customEndpoint, onValueChange = { customEndpoint = it; prefs.edit().putString("custom_endpoint", it).apply() },
+                    value = customEndpoint, onValueChange = { viewModel.updateCustomEndpoint(it) },
                     placeholder = { Text("https://api.example.com/v1") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = monofieldColors()
                 )
@@ -113,7 +114,7 @@ fun SettingsScreen() {
                 Text("Model identifier from your provider", fontSize = 12.sp, color = Color(0xFF8E8E93))
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
-                    value = customModel, onValueChange = { customModel = it; prefs.edit().putString("custom_model", it).apply() },
+                    value = customModel, onValueChange = { viewModel.updateCustomModel(it) },
                     placeholder = { Text("gpt-4o, claude-3-haiku, etc.") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = monofieldColors()
                 )
@@ -134,7 +135,7 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 listOf(
-                    currentPrefix to "Replace",
+                    triggerPrefix to "Replace",
                     "!" to "Append",
                     "+" to "Prepend"
                 ).forEach { (prefix, mode) ->
@@ -179,53 +180,53 @@ fun SettingsScreen() {
             SettingsLabel("Command Reference")
             Spacer(modifier = Modifier.height(10.dp))
             cmdSection("AI Commands")
-            cmdExample("${currentPrefix}fix", "\"i dont no\" → \"I don't know\"")
-            cmdExample("${currentPrefix}formal", "Casual → Professional tone")
-            cmdExample("${currentPrefix}emoji", "\"Great job\" → \"Great job! 🎉\"")
-            cmdExample("${currentPrefix}shorten", "Long text → Concise version")
-            cmdExample("${currentPrefix}expand", "Short text → Detailed version")
-            cmdExample("${currentPrefix}casual", "Formal → Friendly tone")
-            cmdExample("${currentPrefix}reply", "Paste a message → Get a reply")
-            cmdExample("${currentPrefix}sum", "Long text → Summary")
-            cmdExample("${currentPrefix}bullet", "Paragraphs → Bullet points")
-            cmdExample("${currentPrefix}rewrite", "Same meaning, new words")
-            cmdExample("${currentPrefix}remove", "Clean messy text")
-            cmdExample("${currentPrefix}tl", "Any language → English")
-            cmdExample("${currentPrefix}explain", "Complex → Simple terms")
-            cmdExample("${currentPrefix}fancy", "\"hello\" → \"𝒽𝑒𝓁𝓁𝑜\"")
-            cmdExample("${currentPrefix}translate:es", "\"Hello\" → \"Hola\"")
+            cmdExample("${triggerPrefix}fix", "\"i dont no\" → \"I don't know\"")
+            cmdExample("${triggerPrefix}formal", "Casual → Professional tone")
+            cmdExample("${triggerPrefix}emoji", "\"Great job\" → \"Great job! 🎉\"")
+            cmdExample("${triggerPrefix}shorten", "Long text → Concise version")
+            cmdExample("${triggerPrefix}expand", "Short text → Detailed version")
+            cmdExample("${triggerPrefix}casual", "Formal → Friendly tone")
+            cmdExample("${triggerPrefix}reply", "Paste a message → Get a reply")
+            cmdExample("${triggerPrefix}sum", "Long text → Summary")
+            cmdExample("${triggerPrefix}bullet", "Paragraphs → Bullet points")
+            cmdExample("${triggerPrefix}rewrite", "Same meaning, new words")
+            cmdExample("${triggerPrefix}remove", "Clean messy text")
+            cmdExample("${triggerPrefix}tl", "Any language → English")
+            cmdExample("${triggerPrefix}explain", "Complex → Simple terms")
+            cmdExample("${triggerPrefix}fancy", "\"hello\" → \"𝒽𝑒𝓁𝓁𝑜\"")
+            cmdExample("${triggerPrefix}translate:es", "\"Hello\" → \"Hola\"")
             Spacer(modifier = Modifier.height(8.dp))
             cmdSection("Local Commands (Offline)")
-            cmdExample("${currentPrefix}cp", "Copy text to clipboard")
-            cmdExample("${currentPrefix}ct", "Cut text to clipboard")
-            cmdExample("${currentPrefix}pt", "Paste from clipboard")
-            cmdExample("${currentPrefix}del", "Clear all text")
-            cmdExample("${currentPrefix}upper", "\"hello\" → \"HELLO\"")
-            cmdExample("${currentPrefix}lower", "\"HELLO\" → \"hello\"")
-            cmdExample("${currentPrefix}title", "\"the wall\" → \"The Wall\"")
-            cmdExample("${currentPrefix}date", "Insert date & time")
-            cmdExample("${currentPrefix}time", "Insert current time")
-            cmdExample("${currentPrefix}count", "Show word & char count")
-            cmdExample("${currentPrefix}trim", "Clean extra spaces & lines")
-            cmdExample("${currentPrefix}join", "Multi-line → Single line")
-            cmdExample("${currentPrefix}split", "Long text → Short lines")
-            cmdExample("${currentPrefix}sort", "Sort lines alphabetically")
-            cmdExample("${currentPrefix}dedupe", "Remove duplicate lines")
-            cmdExample("${currentPrefix}bold", "\"hello\" → \"𝐡𝐞𝐥𝐥𝐨\"")
-            cmdExample("${currentPrefix}italic", "\"hello\" → \"ℎ𝑒𝑙𝑙𝑜\"")
-            cmdExample("${currentPrefix}rot13", "Rot13 encode/decode")
-            cmdExample("${currentPrefix}md5", "Calculate MD5 hash")
-            cmdExample("${currentPrefix}upside", "\"hello\" → \"ollǝɥ\"")
-            cmdExample("${currentPrefix}mirror", "\"hello\" → \"olleh\"")
-            cmdExample("${currentPrefix}reverse", "\"hello world\" → \"world hello\"")
-            cmdExample("${currentPrefix}undo", "Restore previous text")
+            cmdExample("${triggerPrefix}cp", "Copy text to clipboard")
+            cmdExample("${triggerPrefix}ct", "Cut text to clipboard")
+            cmdExample("${triggerPrefix}pt", "Paste from clipboard")
+            cmdExample("${triggerPrefix}del", "Clear all text")
+            cmdExample("${triggerPrefix}upper", "\"hello\" → \"HELLO\"")
+            cmdExample("${triggerPrefix}lower", "\"HELLO\" → \"hello\"")
+            cmdExample("${triggerPrefix}title", "\"the wall\" → \"The Wall\"")
+            cmdExample("${triggerPrefix}date", "Insert date & time")
+            cmdExample("${triggerPrefix}time", "Insert current time")
+            cmdExample("${triggerPrefix}count", "Show word & char count")
+            cmdExample("${triggerPrefix}trim", "Clean extra spaces & lines")
+            cmdExample("${triggerPrefix}join", "Multi-line → Single line")
+            cmdExample("${triggerPrefix}split", "Long text → Short lines")
+            cmdExample("${triggerPrefix}sort", "Sort lines alphabetically")
+            cmdExample("${triggerPrefix}dedupe", "Remove duplicate lines")
+            cmdExample("${triggerPrefix}bold", "\"hello\" → \"𝐡𝐞𝐥𝐥𝐨\"")
+            cmdExample("${triggerPrefix}italic", "\"hello\" → \"ℎ𝑒𝑙𝑙𝑜\"")
+            cmdExample("${triggerPrefix}rot13", "Rot13 encode/decode")
+            cmdExample("${triggerPrefix}md5", "Calculate MD5 hash")
+            cmdExample("${triggerPrefix}upside", "\"hello\" → \"ollǝɥ\"")
+            cmdExample("${triggerPrefix}mirror", "\"hello\" → \"olleh\"")
+            cmdExample("${triggerPrefix}reverse", "\"hello world\" → \"world hello\"")
+            cmdExample("${triggerPrefix}undo", "Restore previous text")
             Spacer(modifier = Modifier.height(8.dp))
             cmdSection("Intent Commands (Custom)")
-            cmdExample("${currentPrefix}wp", "app:com.whatsapp → Opens WhatsApp")
-            cmdExample("${currentPrefix}call", "tel:+919876543210 → Makes a call")
-            cmdExample("${currentPrefix}sms", "sms:+919876543210 → Opens SMS")
-            cmdExample("${currentPrefix}mail", "mailto:user@email.com → Opens email")
-            cmdExample("${currentPrefix}google", "https://google.com → Opens URL")
+            cmdExample("${triggerPrefix}wp", "app:com.whatsapp → Opens WhatsApp")
+            cmdExample("${triggerPrefix}call", "tel:+919876543210 → Makes a call")
+            cmdExample("${triggerPrefix}sms", "sms:+919876543210 → Opens SMS")
+            cmdExample("${triggerPrefix}mail", "mailto:user@email.com → Opens email")
+            cmdExample("${triggerPrefix}google", "https://google.com → Opens URL")
         }
 
         Spacer(modifier = Modifier.height(12.dp))

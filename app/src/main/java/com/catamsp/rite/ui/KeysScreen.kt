@@ -1,4 +1,4 @@
-﻿package com.catamsp.rite.ui
+package com.catamsp.rite.ui
 
 import android.content.Context
 import androidx.compose.foundation.layout.*
@@ -18,23 +18,28 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.api.GeminiClient
 import com.catamsp.rite.api.OpenAICompatibleClient
-import com.catamsp.rite.manager.KeyManager
 import com.catamsp.rite.ui.components.ScreenTitle
-import com.catamsp.rite.ui.components.SlateCard
+import com.catamsp.rite.viewmodel.KeysViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
-fun KeysScreen() {
+fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val keyManager = remember { KeyManager(context) }
-    var keys by remember { mutableStateOf(keyManager.getKeys()) }
+    
+    val keys by viewModel.keys.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    
     var newKey by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
     val geminiClient = remember { GeminiClient() }
     val openAIClient = remember { OpenAICompatibleClient() }
     val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
@@ -53,7 +58,7 @@ fun KeysScreen() {
         ScreenTitle("API Keys")
 
         // Warning when keystore is unavailable
-        if (!keyManager.isKeystoreAvailable) {
+        if (!viewModel.isKeystoreAvailable()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C2E)),
@@ -112,22 +117,27 @@ fun KeysScreen() {
                                         testResult = "This key has already been added"
                                         return@launch
                                     }
-                                    val result = if (providerType == "custom" && customEndpoint.isNotBlank()) {
-                                        openAIClient.validateKey(trimmedKey, customEndpoint, customModel)
-                                    } else {
-                                        geminiClient.validateKey(trimmedKey)
-                                    }
-                                    isTesting = false
-                                    if (result.isSuccess) {
-                                        val addResult = keyManager.addKey(trimmedKey)
-                                        if (addResult.isSuccess) {
-                                            keys = keyManager.getKeys()
-                                            newKey = ""
-                                            testResult = "Valid key added!"
+                                    
+                                    val result = withContext(Dispatchers.IO) {
+                                        if (providerType == "custom" && customEndpoint.isNotBlank()) {
+                                            openAIClient.validateKey(trimmedKey, customEndpoint, customModel)
                                         } else {
-                                            testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
+                                            geminiClient.validateKey(trimmedKey)
+                                        }
+                                    }
+                                    
+                                    if (result.isSuccess) {
+                                        viewModel.addKey(trimmedKey) { addResult ->
+                                            isTesting = false
+                                            if (addResult.isSuccess) {
+                                                newKey = ""
+                                                testResult = "Valid key added!"
+                                            } else {
+                                                testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
+                                            }
                                         }
                                     } else {
+                                        isTesting = false
                                         testResult = result.exceptionOrNull()?.message ?: "Validation failed"
                                     }
                                 }
@@ -156,7 +166,7 @@ fun KeysScreen() {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            if (keys.isEmpty()) {
+            if (keys.isEmpty() && !isLoading) {
                 item {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
@@ -172,6 +182,12 @@ fun KeysScreen() {
                             fontSize = 13.sp,
                             color = Color(0xFF8E8E93)
                         )
+                    }
+                }
+            } else if (isLoading) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
                     }
                 }
             }
@@ -196,8 +212,7 @@ fun KeysScreen() {
                         }
                         IconButton(onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            keyManager.removeKey(key)
-                            keys = keyManager.getKeys()
+                            viewModel.removeKey(key)
                         }) {
                             Icon(
                                 imageVector = Icons.Default.Delete,

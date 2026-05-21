@@ -38,9 +38,9 @@ fun DashboardScreen() {
     val haptic = LocalHapticFeedback.current
     val keyManager = remember { KeyManager(context) }
     val commandManager = remember { CommandManager(context) }
-    var isServiceEnabled by remember { mutableStateOf(checkServiceEnabled(context)) }
-    var keyCount by remember { mutableIntStateOf(keyManager.getKeys().size) }
-    var currentPrefix by remember { mutableStateOf(commandManager.getTriggerPrefix()) }
+    var isServiceEnabled by remember { mutableStateOf(false) }
+    var keyCount by remember { mutableIntStateOf(0) }
+    var currentPrefix by remember { mutableStateOf("") }
 
     // Use the Activity lifecycle so polling only restarts when the app returns
     // from the background, not when switching between navbar tabs.
@@ -50,9 +50,18 @@ fun DashboardScreen() {
         val lifecycle = activityLifecycle ?: return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             while (true) {
-                isServiceEnabled = checkServiceEnabled(context)
-                keyCount = keyManager.getKeys().size
-                currentPrefix = commandManager.getTriggerPrefix()
+                val enabled = checkServiceEnabled(context)
+                
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val count = keyManager.getKeys().size
+                    val prefix = commandManager.getTriggerPrefix()
+                    
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        isServiceEnabled = enabled
+                        keyCount = count
+                        currentPrefix = prefix
+                    }
+                }
                 delay(3000)
             }
         }
