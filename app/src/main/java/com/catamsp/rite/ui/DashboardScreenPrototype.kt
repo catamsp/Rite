@@ -17,8 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -32,6 +32,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.catamsp.rite.ui.theme.SurfaceTertiary
+import com.catamsp.rite.ui.theme.OutlineDim
 import com.catamsp.rite.viewmodel.DashboardViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,11 +48,6 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
     val currentPrefix by viewModel.currentPrefix.collectAsState()
     val keyStatuses by viewModel.keyStatuses.collectAsState()
 
-    val cardBg = Color(0xFF1C1C1E)
-    val accent = Color.White
-    val dimText = Color(0xFF8E8E93)
-    val green = Color.White
-    val red = Color(0xFF6E6E73)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -76,7 +73,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                 Text(
                     text = "type  →  trigger  →  done",
                     fontSize = 14.sp,
-                    color = dimText,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -87,7 +84,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Row(
@@ -102,12 +99,12 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                             text = if (isServiceEnabled) "We're alive" else "Flatlining",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isServiceEnabled) green else red
+                            color = if (isServiceEnabled) MaterialTheme.colorScheme.tertiary else SurfaceTertiary
                         )
                         Text(
                             text = if (isServiceEnabled) "Watching every keystroke" else "Rite is currently sleeping",
                             fontSize = 13.sp,
-                            color = dimText,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
@@ -120,7 +117,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(accent)
+                                .background(MaterialTheme.colorScheme.onSurface)
                                 .clickable {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -146,7 +143,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -158,12 +155,12 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                         },
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = if (keyCount == 0) "I'm running on fumes. Feed me API keys." else "Feed me more API keys.",
                         fontSize = 13.sp,
-                        color = dimText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -177,7 +174,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                 text = "API Key Status",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 44.dp, vertical = 8.dp)
             )
         }
@@ -189,13 +186,13 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(20.dp)
                 ) {
                     Text(
                         text = "No keys added yet",
                         fontSize = 13.sp,
-                        color = dimText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(20.dp)
                     )
                 }
@@ -206,7 +203,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp, vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Row(
@@ -219,7 +216,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                                 modifier = Modifier
                                     .size(8.dp)
                                     .background(
-                                        if (status.isReady) Color.White else Color(0xFF636366),
+                                        if (status.isReady) MaterialTheme.colorScheme.onSurface else OutlineDim,
                                         shape = RoundedCornerShape(4.dp)
                                     )
                             )
@@ -228,14 +225,14 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                                 text = "••••${status.maskedKey.takeLast(4)}",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Text(
                             text = if (status.isReady) "Alive" else "Resting (${(status.remainingMs!! / 1000L) + 1}s)",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (status.isReady) Color.White else Color(0xFF8E8E93)
+                            color = if (status.isReady) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -249,7 +246,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(20.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
@@ -257,7 +254,7 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                         text = "How it works",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     listOf(
@@ -271,9 +268,9 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.Top
                         ) {
-                            Text(text = title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                            Text(text = "→", fontSize = 14.sp, color = accent)
-                            Text(text = desc, fontSize = 13.sp, color = dimText)
+                            Text(text = title, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            Text(text = "→", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(text = desc, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -290,32 +287,32 @@ fun DashboardScreenPrototype(viewModel: DashboardViewModel = viewModel()) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 val annotatedString = buildAnnotatedString {
-                    withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Medium)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)) {
                         append("Built by ")
                     }
                     pushStringAnnotation(tag = "link", annotation = "https://github.com/catamsp")
-                    withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
                         append("catamsp")
                     }
                     pop()
                     pushStringAnnotation(tag = "star1", annotation = "https://github.com/catamsp")
-                    withStyle(SpanStyle(color = Color.White)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
                         append("  ★  ")
                     }
                     pop()
-                    withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Medium)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)) {
                         append("Vibe Coded")
                     }
                     pushStringAnnotation(tag = "star2", annotation = "https://github.com/Musheer360/SwiftSlate")
-                    withStyle(SpanStyle(color = Color.White)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
                         append("  ★  ")
                     }
                     pop()
-                    withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Medium)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)) {
                         append("from ")
                     }
                     pushStringAnnotation(tag = "link2", annotation = "https://github.com/Musheer360/SwiftSlate")
-                    withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
+                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)) {
                         append("SwiftSlate")
                     }
                     pop()

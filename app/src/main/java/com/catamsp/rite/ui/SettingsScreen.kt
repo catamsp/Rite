@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.ui.theme.SurfaceTertiary
 import com.catamsp.rite.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,8 +38,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     var modelExpanded by remember { mutableStateOf(false) }
     val geminiModels = listOf("gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-3.1-flash-lite")
 
-    val cardBg = Color(0xFF1C1C1E)
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -49,7 +48,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         ScreenTitle("Settings")
 
         // ── Provider ────────────────────────────────────────
-        SettingsCard(cardBg) {
+        SettingsCard(MaterialTheme.colorScheme.surface) {
             SettingsLabel("Provider")
             Spacer(modifier = Modifier.height(8.dp))
             ExposedDropdownMenuBox(expanded = providerExpanded, onExpandedChange = { providerExpanded = !providerExpanded }) {
@@ -75,7 +74,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 
         // ── Model ───────────────────────────────────────────
         if (providerType == "gemini") {
-            SettingsCard(cardBg) {
+            SettingsCard(MaterialTheme.colorScheme.surface) {
                 SettingsLabel("Model")
                 Spacer(modifier = Modifier.height(8.dp))
                 ExposedDropdownMenuBox(expanded = modelExpanded, onExpandedChange = { modelExpanded = !modelExpanded }) {
@@ -96,10 +95,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 }
             }
         } else {
-            SettingsCard(cardBg) {
+            SettingsCard(MaterialTheme.colorScheme.surface) {
                 SettingsLabel("Endpoint")
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Base URL of the OpenAI-compatible API", fontSize = 12.sp, color = Color(0xFF8E8E93))
+                Text("Base URL of the OpenAI-compatible API", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = customEndpoint, onValueChange = { viewModel.updateCustomEndpoint(it) },
@@ -108,10 +107,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            SettingsCard(cardBg) {
+            SettingsCard(MaterialTheme.colorScheme.surface) {
                 SettingsLabel("Model")
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Model identifier from your provider", fontSize = 12.sp, color = Color(0xFF8E8E93))
+                Text("Model identifier from your provider", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = customModel, onValueChange = { viewModel.updateCustomModel(it) },
@@ -124,10 +123,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Trigger Prefix (read-only) ─────────────────────
-        SettingsCard(cardBg) {
+        SettingsCard(MaterialTheme.colorScheme.surface) {
             SettingsLabel("Trigger Prefixes")
             Spacer(modifier = Modifier.height(4.dp))
-            Text("The symbols that start commands. Base prefix is set at first launch.", fontSize = 12.sp, color = Color(0xFF8E8E93))
+            Text("The symbols that start commands. Base prefix is set at first launch.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -143,18 +142,18 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0xFF3A3A3C))
+                                .background(MaterialTheme.colorScheme.outlineVariant)
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                         ) {
                             Text(
                                 text = prefix,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = mode, fontSize = 11.sp, color = Color(0xFF8E8E93))
+                        Text(text = mode, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -163,20 +162,20 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(8.dp))
 
         // ── Append & Prepend ───────────────────────────────
-        SettingsCard(cardBg) {
+        SettingsCard(MaterialTheme.colorScheme.surface) {
             SettingsLabel("Append & Prepend Modes")
             Spacer(modifier = Modifier.height(8.dp))
-            appendPrependRow("Replace", "?fix", "Result replaces your text entirely", cardBg)
+            appendPrependRow("Replace", "?fix", "Result replaces your text entirely", MaterialTheme.colorScheme.surface)
             Spacer(modifier = Modifier.height(6.dp))
-            appendPrependRow("Append", "!fix", "Result is added after your text", cardBg)
+            appendPrependRow("Append", "!fix", "Result is added after your text", MaterialTheme.colorScheme.surface)
             Spacer(modifier = Modifier.height(6.dp))
-            appendPrependRow("Prepend", "+fix", "Result is added before your text", cardBg)
+            appendPrependRow("Prepend", "+fix", "Result is added before your text", MaterialTheme.colorScheme.surface)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // ── Command Reference ──────────────────────────────
-        SettingsCard(cardBg) {
+        SettingsCard(MaterialTheme.colorScheme.surface) {
             SettingsLabel("Command Reference")
             Spacer(modifier = Modifier.height(10.dp))
             cmdSection("AI Commands")
@@ -232,16 +231,16 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(12.dp))
 
         // ── About ──────────────────────────────────────────
-        SettingsCard(cardBg) {
+        SettingsCard(MaterialTheme.colorScheme.surface) {
             SettingsLabel("About")
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Rite is a system-wide AI text assistant for Android. Type a trigger at the end of any text in any app and it transforms instantly. Works via Accessibility Service — no copy-paste, no app switching.",
-                fontSize = 13.sp, color = Color(0xFF8E8E93), lineHeight = 18.sp
+                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Version 2.0 · Built by catamsp · Vibe Coded", fontSize = 12.sp, color = Color(0xFF6E6E73))
-            Text("Forked from SwiftSlate by Musheer Alam", fontSize = 12.sp, color = Color(0xFF6E6E73))
+            Text("Version 2.0 · Built by catamsp · Vibe Coded", fontSize = 12.sp, color = SurfaceTertiary)
+            Text("Forked from SwiftSlate by Musheer Alam", fontSize = 12.sp, color = SurfaceTertiary)
         }
     }
 }
@@ -250,15 +249,15 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 
 @Composable
 private fun monofieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = Color.White,
-    unfocusedBorderColor = Color(0xFF3A3A3C)
+    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
 )
 
 @Composable
 private fun SettingsCard(cardBg: Color, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = cardBg),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(
@@ -270,28 +269,28 @@ private fun SettingsCard(cardBg: Color, content: @Composable ColumnScope.() -> U
 
 @Composable
 private fun SettingsLabel(text: String) {
-    Text(text = text, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+    Text(text = text, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
 }
 
 @Composable
 private fun appendPrependRow(mode: String, example: String, desc: String, cardBg: Color) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-        Text(text = mode, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.width(60.dp))
-        Text(text = example, fontSize = 13.sp, color = Color(0xFF8E8E93), modifier = Modifier.width(60.dp))
-        Text(text = desc, fontSize = 13.sp, color = Color(0xFF8E8E93))
+        Text(text = mode, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.width(60.dp))
+        Text(text = example, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(60.dp))
+        Text(text = desc, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun cmdSection(title: String) {
-    Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+    Text(text = title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
     Spacer(modifier = Modifier.height(6.dp))
 }
 
 @Composable
 private fun cmdExample(trigger: String, desc: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = trigger, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White, modifier = Modifier.width(130.dp))
-        Text(text = desc, fontSize = 12.sp, color = Color(0xFF8E8E93))
+        Text(text = trigger, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.width(130.dp))
+        Text(text = desc, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

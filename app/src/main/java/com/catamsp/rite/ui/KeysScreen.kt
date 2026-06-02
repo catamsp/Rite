@@ -22,6 +22,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.api.GeminiClient
 import com.catamsp.rite.api.OpenAICompatibleClient
 import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.ui.theme.SurfaceTertiary
+import com.catamsp.rite.ui.theme.OutlineDim
 import com.catamsp.rite.viewmodel.KeysViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -47,8 +49,6 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
     val customEndpoint = remember { prefs.getString("custom_endpoint", "") ?: "" }
     val customModel = remember { prefs.getString("custom_model", "") ?: "" }
 
-    val cardBg = Color(0xFF1C1C1E)
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -61,7 +61,7 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
         if (!viewModel.isKeystoreAvailable()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2C2C2E)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -69,13 +69,13 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                         text = "⚠️ Security Warning",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = Color(0xFFEBEBF5)
+                        color = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Your device's security chip is unavailable. API keys cannot be stored safely on this device.",
                         fontSize = 13.sp,
-                        color = Color(0xFF8E8E93)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -84,7 +84,7 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -95,8 +95,8 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color(0xFF3A3A3C)
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                     )
                 )
                 Spacer(modifier = Modifier.height(10.dp))
@@ -144,7 +144,7 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                             }
                         },
                         enabled = newKey.isNotBlank() && !isTesting,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
                     ) {
                         Text(if (isTesting) "Testing..." else "Add Key", color = Color.Black)
                     }
@@ -152,7 +152,7 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                 if (testResult != null) {
                     Text(
                         text = testResult!!,
-                        color = if (testResult!!.startsWith("Valid")) Color.White else Color(0xFF6E6E73),
+                        color = if (testResult!!.startsWith("Valid")) MaterialTheme.colorScheme.onSurface else SurfaceTertiary,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(top = 8.dp)
                     )
@@ -175,26 +175,26 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                         Text(
                             text = "No keys yet",
                             fontSize = 16.sp,
-                            color = Color(0xFF8E8E93)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = "Add one above to get started",
                             fontSize = 13.sp,
-                            color = Color(0xFF8E8E93)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             } else if (isLoading) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color.White)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
             items(keys) { key ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Row(
@@ -207,7 +207,7 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                                 text = "••••••••" + key.takeLast(6),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         IconButton(onClick = {
@@ -217,7 +217,7 @@ fun KeysScreen(viewModel: KeysViewModel = viewModel()) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
                                 contentDescription = "Delete Key",
-                                tint = Color(0xFF8E8E93)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }

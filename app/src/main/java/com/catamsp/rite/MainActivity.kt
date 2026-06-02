@@ -33,7 +33,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.catamsp.rite.ui.DashboardScreenPrototype
 import com.catamsp.rite.ui.CommandsScreen
-import com.catamsp.rite.ui.DashboardScreen
 import com.catamsp.rite.ui.KeysScreen
 import com.catamsp.rite.ui.SettingsScreen
 import com.catamsp.rite.ui.theme.RiteTheme

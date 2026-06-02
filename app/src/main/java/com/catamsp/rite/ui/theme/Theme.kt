@@ -24,8 +24,14 @@ private val DarkColorScheme = darkColorScheme(
     onPrimaryContainer = Color(0xFFFFFFFF),
     error = Color(0xFFFF453A),
     tertiary = Color(0xFF30D158), // success
-    tertiaryContainer = Color(0xFFFFD60A) // warning
+    tertiaryContainer = Color(0xFFFFD60A), // warning
+    outlineVariant = Color(0xFF3A3A3C),
+    errorContainer = Color(0xFF2C2C2E),
+    onErrorContainer = Color(0xFFEBEBF5),
 )
+
+val SurfaceTertiary = Color(0xFF6E6E73)
+val OutlineDim = Color(0xFF636366)
 
 @Composable
 fun RiteTheme(

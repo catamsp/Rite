@@ -23,8 +23,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -102,9 +102,6 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
         return if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
     }
 
-    val cardBg = Color(0xFF1C1C1E)
-    val dimText = Color(0xFF8E8E93)
-
     // Show import/export result as toast
     importResult?.let { msg ->
         LaunchedEffect(msg) {
@@ -128,26 +125,26 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                 text = "Commands",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Row {
                 IconButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     importLauncher.launch(arrayOf("text/*", "text/csv"))
                 }) {
-                    Icon(Icons.Default.Download, contentDescription = "Import CSV", tint = Color.White)
+                    Icon(Icons.Default.Download, contentDescription = "Import CSV", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 IconButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     showExportPicker = true
                 }) {
-                    Icon(Icons.Default.Share, contentDescription = "Export CSV", tint = Color.White)
+                    Icon(Icons.Default.Share, contentDescription = "Export CSV", tint = MaterialTheme.colorScheme.onSurface)
                 }
                 IconButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     dialogState = Pair(false, null)
                 }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Command", tint = Color.White)
+                    Icon(Icons.Default.Add, contentDescription = "Add Command", tint = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -164,7 +161,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) Color.White else cardBg)
+                        .background(if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             selectedFilter = filter
@@ -175,7 +172,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                         text = filter,
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.Black else dimText
+                        color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -187,7 +184,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
         importResult?.let { msg ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
@@ -195,9 +192,9 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = msg, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    Text(text = msg, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                     TextButton(onClick = { viewModel.clearImportResult() }) {
-                        Text("Dismiss", color = dimText, fontSize = 12.sp)
+                        Text("Dismiss", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                 }
             }
@@ -208,24 +205,24 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
         if (showExportPicker) {
             Dialog(onDismissRequest = { showExportPicker = false }) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline),
                     shape = RoundedCornerShape(20.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text("Export Commands", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                        Text("Export Commands", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Choose where to save the CSV file.", fontSize = 14.sp, color = dimText)
+                        Text("Choose where to save the CSV file.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             TextButton(onClick = { showExportPicker = false }) {
-                                Text("Cancel", color = dimText)
+                                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Button(
                                 onClick = {
                                     showExportPicker = false
                                     exportLauncher.launch("rite-commands.csv")
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Text("Choose Location", color = Color.Black)
                             }
@@ -246,14 +243,14 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                         modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = "No commands", fontSize = 16.sp, color = dimText)
-                        Text(text = "Tap + to add one", fontSize = 13.sp, color = dimText)
+                        Text(text = "No commands", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(text = "Tap + to add one", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else if (isLoading) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color.White)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -261,7 +258,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                 val type = getCommandType(cmd)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Row(
@@ -274,14 +271,14 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFF3A3A3C))
+                                        .background(MaterialTheme.colorScheme.outlineVariant)
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = type,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -289,14 +286,14 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                                     text = cmd.trigger,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = cmd.prompt,
                                 fontSize = 13.sp,
-                                color = dimText,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2
                             )
                         }
@@ -306,13 +303,13 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     viewModel.removeCommand(cmd.trigger)
                                 }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = dimText)
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 IconButton(onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     dialogState = Pair(true, cmd.trigger) // Open in Edit mode
                                 }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = dimText)
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -367,7 +364,7 @@ fun CommandDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1E)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline),
             shape = RoundedCornerShape(20.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
@@ -376,9 +373,9 @@ fun CommandDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(if (isEdit) "Edit Command" else "Add Command", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                    Text(if (isEdit) "Edit Command" else "Add Command", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -389,8 +386,8 @@ fun CommandDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color(0xFF3A3A3C)
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                     )
                 )
                 Spacer(modifier = Modifier.height(10.dp))
@@ -400,12 +397,12 @@ fun CommandDialog(
                     label = { Text("Prompt or app:com.pkg, tel:..., https://...") },
                     modifier = Modifier.fillMaxWidth().height(90.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color.White,
-                        unfocusedBorderColor = Color(0xFF3A3A3C)
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                     )
                 )
                 error?.let {
-                    Text(text = it, color = Color(0xFF8E8E93), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                    Text(text = it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 
@@ -432,7 +429,7 @@ fun CommandDialog(
                             }
                             onSave(t, p)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
                     ) {
                         Text(if (isEdit) "Update" else "Save", color = Color.Black)
                     }
