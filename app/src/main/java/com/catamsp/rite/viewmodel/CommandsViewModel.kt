@@ -3,34 +3,42 @@ package com.catamsp.rite.viewmodel
 import android.app.Application
 import android.content.ContentResolver
 import android.net.Uri
+import androidx.compose.runtime.Stable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.catamsp.rite.RiteApp
 import com.catamsp.rite.manager.CommandManager
 import com.catamsp.rite.model.Command
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 
+sealed interface CommandDialogState {
+    data object Hidden : CommandDialogState
+    data class Add(val existingTriggers: Set<String>) : CommandDialogState
+    data class Edit(val trigger: String, val existingTriggers: Set<String>) : CommandDialogState
+}
+
+@Stable
+data class CommandsState(
+    val commands: ImmutableList<Command> = persistentListOf(),
+    val triggerPrefix: String = "",
+    val importResult: String? = null
+)
+
 class CommandsViewModel(application: Application) : AndroidViewModel(application) {
-    private val commandManager = CommandManager(application)
+    private val commandManager = (application as RiteApp).commandManager
 
-    private val _allCommands = MutableStateFlow<List<Command>>(emptyList())
-    val allCommands: StateFlow<List<Command>> = _allCommands.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _triggerPrefix = MutableStateFlow("")
-    val triggerPrefix: StateFlow<String> = _triggerPrefix.asStateFlow()
-
-    private val _importResult = MutableStateFlow<String?>(null)
-    val importResult: StateFlow<String?> = _importResult.asStateFlow()
+    private val _state = MutableStateFlow(CommandsState())
+    val state: StateFlow<CommandsState> = _state.asStateFlow()
 
     init {
         refreshCommands()
@@ -39,15 +47,14 @@ class CommandsViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshCommands() {
         viewModelScope.launch(Dispatchers.IO) {
-            _isLoading.value = true
-            _allCommands.value = commandManager.getCommands()
-            _isLoading.value = false
+            val commands = commandManager.getCommands().toImmutableList()
+            _state.value = _state.value.copy(commands = commands)
         }
     }
 
     private fun refreshPrefix() {
         viewModelScope.launch(Dispatchers.IO) {
-            _triggerPrefix.value = commandManager.getTriggerPrefix()
+            _state.value = _state.value.copy(triggerPrefix = commandManager.getTriggerPrefix())
         }
     }
 
@@ -79,17 +86,17 @@ class CommandsViewModel(application: Application) : AndroidViewModel(application
                     BufferedReader(InputStreamReader(stream)).readLines()
                 } ?: emptyList()
 
-                val existingTriggers = _allCommands.value.map { it.trigger }.toSet()
+                val existingTriggers = _state.value.commands.map { it.trigger }.toSet()
                 val result = commandManager.importCommands(lines, existingTriggers)
-                
+
                 val skippedDetail = if (result.skippedTriggers.isNotEmpty()) {
                     "\nSkipped: ${result.skippedTriggers.joinToString(", ")}"
                 } else ""
-                
-                _importResult.value = "Imported ${result.imported} commands, ${result.skipped} skipped$skippedDetail"
+
+                _state.value = _state.value.copy(importResult = "Imported ${result.imported} commands, ${result.skipped} skipped$skippedDetail")
                 refreshCommands()
             } catch (e: Exception) {
-                _importResult.value = "Import failed: ${e.message}"
+                _state.value = _state.value.copy(importResult = "Import failed: ${e.message}")
             }
         }
     }
@@ -101,14 +108,14 @@ class CommandsViewModel(application: Application) : AndroidViewModel(application
                 contentResolver.openOutputStream(uri)?.use { stream ->
                     OutputStreamWriter(stream).use { it.write(csv) }
                 }
-                _importResult.value = "Exported ${_allCommands.value.count { !it.isBuiltIn }} commands"
+                _state.value = _state.value.copy(importResult = "Exported ${_state.value.commands.count { !it.isBuiltIn }} commands")
             } catch (e: Exception) {
-                _importResult.value = "Export failed: ${e.message}"
+                _state.value = _state.value.copy(importResult = "Export failed: ${e.message}")
             }
         }
     }
 
     fun clearImportResult() {
-        _importResult.value = null
+        _state.value = _state.value.copy(importResult = null)
     }
 }

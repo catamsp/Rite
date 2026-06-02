@@ -1,13 +1,9 @@
 ﻿package com.catamsp.rite.ui.theme
 
-import android.app.Activity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
     background = Color(0xFF000000),
@@ -23,8 +19,8 @@ private val DarkColorScheme = darkColorScheme(
     primaryContainer = Color(0xFF1A1A1A),
     onPrimaryContainer = Color(0xFFFFFFFF),
     error = Color(0xFFFF453A),
-    tertiary = Color(0xFF30D158), // success
-    tertiaryContainer = Color(0xFFFFD60A), // warning
+    tertiary = Color(0xFF30D158),
+    tertiaryContainer = Color(0xFFFFD60A),
     outlineVariant = Color(0xFF3A3A3C),
     errorContainer = Color(0xFF2C2C2E),
     onErrorContainer = Color(0xFFEBEBF5),
@@ -37,18 +33,8 @@ val OutlineDim = Color(0xFF636366)
 fun RiteTheme(
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
-        }
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkColorScheme,
         content = content
     )
 }

@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.ACCESSIBILITY_SERVICE" />
     <!-- Required on Android 11+ to launch third-party apps via intent commands (e.g., ?wp -> WhatsApp) -->
     <!-- Without this, getLaunchIntentForPackage() returns null for all non-system apps -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -14,6 +15,7 @@
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <application
+        android:name=".RiteApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

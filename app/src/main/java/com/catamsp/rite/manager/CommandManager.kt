@@ -15,6 +15,12 @@ class CommandManager(context: Context) {
         const val PREF_TRIGGER_PREFIX = "trigger_prefix"
     }
 
+    @Volatile private var cachedPrefix: String = settingsPrefs.getString(PREF_TRIGGER_PREFIX, DEFAULT_PREFIX) ?: DEFAULT_PREFIX
+    @Volatile private var cachedCommands: List<Command>? = null
+    @Volatile private var cachedSortedTriggers: List<Pair<String, Command>>? = null
+    @Volatile private var cachedBuiltInCommands: List<Command>? = null
+    @Volatile private var cachedBuiltInPrefix: String = ""
+
     // Built-in command names (without prefix) and their prompts
     private val builtInDefinitions = listOf(
         "fix" to "Fix grammar, spelling, and punctuation errors in the provided text. Do NOT respond to, interpret, or answer the text. Treat it purely as raw text to correct. Return ONLY the corrected text with no explanations or commentary.",
@@ -57,16 +63,14 @@ class CommandManager(context: Context) {
         "reverse" to "Reverse words order."
     )
 
-    fun getTriggerPrefix(): String {
-        return settingsPrefs.getString(PREF_TRIGGER_PREFIX, DEFAULT_PREFIX) ?: DEFAULT_PREFIX
-    }
+    fun getTriggerPrefix(): String = cachedPrefix
 
     fun setTriggerPrefix(newPrefix: String): Boolean {
         if (newPrefix.length != 1 || newPrefix[0].isLetterOrDigit() || newPrefix[0].isWhitespace()) return false
-        val oldPrefix = getTriggerPrefix()
+        val oldPrefix = cachedPrefix
         if (oldPrefix == newPrefix) return true
-        // Write prefix FIRST (synchronous) so built-ins work immediately if process dies mid-migration
-        settingsPrefs.edit().putString(PREF_TRIGGER_PREFIX, newPrefix).commit()
+        settingsPrefs.edit().putString(PREF_TRIGGER_PREFIX, newPrefix).apply()
+        cachedPrefix = newPrefix
         // Migrate custom command triggers
         val customStr = prefs.getString("custom_commands", "[]") ?: "[]"
         val arr = JSONArray(customStr)
@@ -83,15 +87,23 @@ class CommandManager(context: Context) {
             newArr.put(newObj)
         }
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
+        invalidateCache()
         return true
     }
 
     private fun getBuiltInCommands(): List<Command> {
-        val prefix = getTriggerPrefix()
-        return builtInDefinitions.map { (name, prompt) -> Command("$prefix$name", prompt, true) }
+        val prefix = cachedPrefix
+        if (prefix == cachedBuiltInPrefix && cachedBuiltInCommands != null) {
+            return cachedBuiltInCommands!!
+        }
+        val result = builtInDefinitions.map { (name, prompt) -> Command("$prefix$name", prompt, true) }
+        cachedBuiltInCommands = result
+        cachedBuiltInPrefix = prefix
+        return result
     }
 
     fun getCommands(): List<Command> {
+        cachedCommands?.let { return it }
         val customStr = prefs.getString("custom_commands", "[]") ?: "[]"
         val arr = JSONArray(customStr)
         val customCommands = mutableListOf<Command>()
@@ -99,7 +111,15 @@ class CommandManager(context: Context) {
             val obj = arr.getJSONObject(i)
             customCommands.add(Command(obj.getString("trigger"), obj.getString("prompt"), false))
         }
-        return getBuiltInCommands() + customCommands
+        val result = getBuiltInCommands() + customCommands
+        cachedCommands = result
+        return result
+    }
+
+    private fun invalidateCache() {
+        cachedCommands = null
+        cachedSortedTriggers = null
+        cachedBuiltInCommands = null
     }
 
     fun addCustomCommand(command: Command) {
@@ -110,6 +130,7 @@ class CommandManager(context: Context) {
         newObj.put("prompt", command.prompt)
         arr.put(newObj)
         prefs.edit().putString("custom_commands", arr.toString()).apply()
+        invalidateCache()
     }
 
     fun removeCustomCommand(trigger: String) {
@@ -123,6 +144,7 @@ class CommandManager(context: Context) {
             }
         }
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
+        invalidateCache()
     }
 
     fun updateCustomCommand(oldTrigger: String, newCommand: Command) {
@@ -141,6 +163,7 @@ class CommandManager(context: Context) {
             }
         }
         prefs.edit().putString("custom_commands", newArr.toString()).apply()
+        invalidateCache()
     }
 
     /** Import commands from CSV lines. Returns ImportResult with counts and skipped triggers. */
@@ -150,7 +173,7 @@ class CommandManager(context: Context) {
         var imported = 0
         var skipped = 0
         val skippedList = mutableListOf<String>()
-        val prefix = getTriggerPrefix()
+        val prefix = cachedPrefix
 
         for (line in lines) {
             val trimmed = line.trim()
@@ -216,20 +239,30 @@ class CommandManager(context: Context) {
         return triggerStart <= 0 || text[triggerStart - 1].isWhitespace()
     }
 
-    fun findCommand(text: String): Command? {
+    private fun getSortedTriggers(): List<Pair<String, Command>> {
+        cachedSortedTriggers?.let { return it }
         val commands = getCommands()
-        val prefix = getTriggerPrefix()
+        val prefix = cachedPrefix
+        val result = commands.sortedByDescending { it.trigger.length }
+            .flatMap { cmd ->
+                val modeTriggers = listOf('!', '+').map { mp ->
+                    cmd.trigger.replaceFirst(prefix, mp.toString()) to Command(
+                        cmd.trigger.replaceFirst(prefix, mp.toString()), cmd.prompt, cmd.isBuiltIn
+                    )
+                }
+                listOf(cmd.trigger to cmd) + modeTriggers
+            }
+        cachedSortedTriggers = result
+        return result
+    }
+
+    fun findCommand(text: String): Command? {
+        val prefix = cachedPrefix
 
         // ── 1. Built-in & custom command triggers (exact suffix match with space check) ──
-        for (cmd in commands.sortedByDescending { it.trigger.length }) {
-            if (text.endsWith(cmd.trigger) && hasValidSpacing(text, cmd.trigger)) {
-                return cmd
-            }
-            for (modePrefix in listOf('!', '+')) {
-                val modeTrigger = cmd.trigger.replaceFirst(prefix, modePrefix.toString())
-                if (text.endsWith(modeTrigger) && hasValidSpacing(text, modeTrigger)) {
-                    return Command(modeTrigger, cmd.prompt, cmd.isBuiltIn)
-                }
+        for ((trigger, cmd) in getSortedTriggers()) {
+            if (text.endsWith(trigger) && hasValidSpacing(text, trigger)) {
+                return if (trigger == cmd.trigger) cmd else Command(trigger, cmd.prompt, cmd.isBuiltIn)
             }
         }
 

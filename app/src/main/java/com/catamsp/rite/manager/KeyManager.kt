@@ -5,10 +5,10 @@ import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.compose.runtime.Immutable
 import org.json.JSONArray
 import java.nio.charset.StandardCharsets
 import java.security.KeyStore
-import java.util.concurrent.atomic.AtomicInteger
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -25,9 +25,10 @@ class KeyManager(context: Context) {
         private const val PREF_KEY_ARRAY = "keys_array"
     }
 
-    private val rateLimitedKeys = mutableMapOf<String, Long>()
-    private val invalidKeys = mutableSetOf<String>()
-    private val roundRobinIndex = AtomicInteger(0)
+    private val selector = ApiKeySelector()
+    @Volatile private var cachedKeys: List<String>? = null
+    @Volatile private var lastEncryptedSnapshot: String? = null
+    @Volatile private var cachedSecretKey: SecretKey? = null
 
     /** Whether the device's keystore is available for encryption/decryption. */
     var isKeystoreAvailable: Boolean = false
@@ -50,7 +51,8 @@ class KeyManager(context: Context) {
                 keyGenerator.init(keyGenParameterSpec)
                 keyGenerator.generateKey()
             }
-            isKeystoreAvailable = true
+            cachedSecretKey = keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+            isKeystoreAvailable = cachedSecretKey != null
         } catch (e: Exception) {
             isKeystoreAvailable = false
             android.util.Log.e("Rite", "Keystore unavailable: ${e.message}")
@@ -58,10 +60,11 @@ class KeyManager(context: Context) {
     }
 
     private fun getSecretKey(): SecretKey? {
+        cachedSecretKey?.let { return it }
         return try {
             val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
             keyStore.load(null)
-            keyStore.getKey(KEY_ALIAS, null) as? SecretKey
+            (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.also { cachedSecretKey = it }
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -112,6 +115,10 @@ class KeyManager(context: Context) {
 
     fun getKeys(): List<String> {
         val encryptedStr = prefs.getString(PREF_KEY_ARRAY, null) ?: return emptyList()
+        if (encryptedStr == lastEncryptedSnapshot) {
+            cachedKeys?.let { return it }
+        }
+        lastEncryptedSnapshot = encryptedStr
         val jsonStr = decrypt(encryptedStr)
         val list = mutableListOf<String>()
         try {
@@ -122,6 +129,7 @@ class KeyManager(context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        cachedKeys = list
         return list
     }
 
@@ -129,6 +137,8 @@ class KeyManager(context: Context) {
         val arr = JSONArray(keys)
         val encryptedStr = encrypt(arr.toString())
         prefs.edit().putString(PREF_KEY_ARRAY, encryptedStr).apply()
+        cachedKeys = null
+        lastEncryptedSnapshot = null
     }
 
     fun addKey(key: String): Result<Unit> {
@@ -140,7 +150,7 @@ class KeyManager(context: Context) {
             keys.add(key)
             saveKeys(keys)
         }
-        invalidKeys.remove(key)
+        selector.clearInvalid(key)
         return Result.success(Unit)
     }
 
@@ -148,62 +158,22 @@ class KeyManager(context: Context) {
         val keys = getKeys().toMutableList()
         keys.remove(key)
         saveKeys(keys)
-        rateLimitedKeys.remove(key)
-        invalidKeys.remove(key)
+        selector.markInvalid(key)
     }
 
-    fun getNextKey(): String? {
-        val keys = getKeys()
-        if (keys.isEmpty()) return null
-        
-        val now = System.currentTimeMillis()
-        val validKeys = keys.filter { key ->
-            if (invalidKeys.contains(key)) return@filter false
-            val limitTime = rateLimitedKeys[key] ?: 0L
-            now > limitTime
-        }
-        
-        if (validKeys.isEmpty()) return null
-        
-        val idx = (roundRobinIndex.getAndIncrement() and Int.MAX_VALUE) % validKeys.size
-        return validKeys[idx]
-    }
+    fun getNextKey(): String? = selector.getNextKey(getKeys())
 
-    fun reportRateLimit(key: String, retryAfterSeconds: Long = 60) {
-        val cooldown = retryAfterSeconds.coerceIn(1, 600)
-        rateLimitedKeys[key] = System.currentTimeMillis() + cooldown * 1_000
-    }
+    fun reportRateLimit(key: String, retryAfterSeconds: Long = 60) =
+        selector.reportRateLimit(key, retryAfterSeconds)
 
-    fun markInvalid(key: String) {
-        invalidKeys.add(key)
-    }
+    fun markInvalid(key: String) = selector.markInvalid(key)
 
-    fun getShortestWaitTimeMs(): Long? {
-        val keys = getKeys()
-        if (keys.isEmpty()) return null
-        val now = System.currentTimeMillis()
-        val waits = keys.filter { !invalidKeys.contains(it) }
-            .mapNotNull { key ->
-                val limitTime = rateLimitedKeys[key] ?: return@mapNotNull null
-                val remaining = limitTime - now
-                if (remaining > 0) remaining else null
-            }
-        return waits.minOrNull()
-    }
+    fun getShortestWaitTimeMs(): Long? = selector.getShortestWaitTimeMs(getKeys())
 
+    @Immutable
     data class KeyStatus(val maskedKey: String, val isReady: Boolean, val remainingMs: Long?)
 
-    fun getKeyStatuses(): List<KeyStatus> {
-        val keys = getKeys()
-        val now = System.currentTimeMillis()
-        return keys.map { key ->
-            val limitTime = rateLimitedKeys[key] ?: 0L
-            val remaining = if (limitTime > now) limitTime - now else 0L
-            KeyStatus(
-                maskedKey = key,
-                isReady = limitTime <= now && !invalidKeys.contains(key),
-                remainingMs = if (limitTime > now) remaining else null
-            )
-        }
+    fun getKeyStatuses(): List<KeyStatus> = selector.getKeyStatuses(getKeys()).map {
+        KeyStatus(it.maskedKey, it.isReady, it.remainingMs)
     }
 }

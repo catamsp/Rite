@@ -11,24 +11,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun SlateCard(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 0.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            content = content
-        )
-    }
-}
-
-@Composable
 fun ScreenTitle(title: String) {
     Text(
         text = title,

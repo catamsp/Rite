@@ -1,24 +1,32 @@
 package com.catamsp.rite.viewmodel
 
 import android.app.Application
-import android.content.Context
+import androidx.compose.runtime.Stable
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.catamsp.rite.RiteApp
 import com.catamsp.rite.manager.KeyManager
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+@Stable
+data class KeysState(
+    val keys: ImmutableList<String> = persistentListOf(),
+    val isLoading: Boolean = true,
+    val isKeystoreAvailable: Boolean = false
+)
+
 class KeysViewModel(application: Application) : AndroidViewModel(application) {
-    private val keyManager = KeyManager(application)
+    private val keyManager = (application as RiteApp).keyManager
 
-    private val _keys = MutableStateFlow<List<String>>(emptyList())
-    val keys: StateFlow<List<String>> = _keys.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _state = MutableStateFlow(KeysState(isKeystoreAvailable = keyManager.isKeystoreAvailable))
+    val state: StateFlow<KeysState> = _state.asStateFlow()
 
     init {
         refreshKeys()
@@ -26,9 +34,8 @@ class KeysViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshKeys() {
         viewModelScope.launch(Dispatchers.IO) {
-            _isLoading.value = true
-            _keys.value = keyManager.getKeys()
-            _isLoading.value = false
+            val keys = keyManager.getKeys().toImmutableList()
+            _state.value = _state.value.copy(keys = keys, isLoading = false)
         }
     }
 
@@ -36,7 +43,7 @@ class KeysViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             val result = keyManager.addKey(key)
             if (result.isSuccess) {
-                _keys.value = keyManager.getKeys()
+                _state.value = _state.value.copy(keys = keyManager.getKeys().toImmutableList())
             }
             launch(Dispatchers.Main) {
                 onResult(result)
@@ -47,9 +54,7 @@ class KeysViewModel(application: Application) : AndroidViewModel(application) {
     fun removeKey(key: String) {
         viewModelScope.launch(Dispatchers.IO) {
             keyManager.removeKey(key)
-            _keys.value = keyManager.getKeys()
+            _state.value = _state.value.copy(keys = keyManager.getKeys().toImmutableList())
         }
     }
-
-    fun isKeystoreAvailable(): Boolean = keyManager.isKeystoreAvailable
 }

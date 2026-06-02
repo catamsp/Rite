@@ -1,7 +1,5 @@
 package com.catamsp.rite.ui
 
-import android.app.Activity
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -9,22 +7,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -32,25 +28,68 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.model.Command
-import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.viewmodel.CommandDialogState
 import com.catamsp.rite.viewmodel.CommandsViewModel
+
+private val DownloadIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "Download",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(
+            fill = androidx.compose.ui.graphics.SolidColor(androidx.compose.ui.graphics.Color.Black),
+            strokeLineWidth = 0f
+        ) {
+            moveTo(19f, 9f)
+            horizontalLineToRelative(-4f)
+            verticalLineTo(3f)
+            horizontalLineTo(9f)
+            verticalLineTo(6f)
+            lineTo(5f, 6f)
+            lineTo(12f, 13f)
+            lineTo(19f, 6f)
+            close()
+            moveTo(5f, 18f)
+            verticalLineTo(20f)
+            horizontalLineTo(19f)
+            verticalLineTo(18f)
+            close()
+        }
+    }.build()
+}
+
+private val LOCAL_SET = setOf(
+    "cp", "ct", "pt", "del", "upper", "lower", "title", "date", "time", "count",
+    "trim", "join", "split", "sort", "dedupe", "upside", "mirror", "bold", "italic",
+    "rot13", "md5", "reverse", "undo"
+)
+
+private fun getCommandType(cmd: Command): String {
+    if (cmd.isBuiltIn) {
+        val name = cmd.trigger.removePrefix("?").removePrefix("!").removePrefix("+")
+        return if (LOCAL_SET.contains(name)) "Local" else "AI"
+    }
+    val p = cmd.prompt.trimStart()
+    return if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
+}
 
 @Composable
 fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    
-    val allCommands by viewModel.allCommands.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val currentPrefix by viewModel.triggerPrefix.collectAsState()
-    val importResult by viewModel.importResult.collectAsState()
 
-    // Dialog state: null = closed, Pair = (isEdit, oldTrigger/null)
-    var dialogState by remember { mutableStateOf<Pair<Boolean, String?>?>(null) }
+    val commandsState by viewModel.state.collectAsStateWithLifecycle()
+    val allCommands = commandsState.commands
+    val currentPrefix = commandsState.triggerPrefix
+    val importResult = commandsState.importResult
 
-    // Export state
+    var dialogState by remember { mutableStateOf<CommandDialogState>(CommandDialogState.Hidden) }
     var showExportPicker by remember { mutableStateOf(false) }
 
     val importLauncher = rememberLauncherForActivityResult(
@@ -69,40 +108,15 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
         }
     }
 
-    // Filter state
     var selectedFilter by remember { mutableStateOf("All") }
-    val filters = remember { listOf("All", "AI", "Local", "Action") }
 
-    // Filter commands - using derivedStateOf to prevent recalculation on unrelated state changes
     val filteredCommands by remember {
         derivedStateOf {
             if (selectedFilter == "All") allCommands
-            else allCommands.filter { cmd ->
-                val type = if (cmd.isBuiltIn) {
-                    val localSet = setOf("cp", "ct", "pt", "del", "upper", "lower", "title", "date", "time", "count", "trim", "join", "split", "sort", "dedupe", "upside", "mirror", "bold", "italic", "rot13", "md5", "reverse", "undo")
-                    val name = cmd.trigger.removePrefix("?").removePrefix("!").removePrefix("+")
-                    if (localSet.contains(name)) "Local" else "AI"
-                } else {
-                    val p = cmd.prompt.trimStart()
-                    if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
-                }
-                type == selectedFilter
-            }
+            else allCommands.filter { cmd -> getCommandType(cmd) == selectedFilter }
         }
     }
 
-    // Helper to get command type for display in the list
-    fun getCommandType(cmd: Command): String {
-        if (cmd.isBuiltIn) {
-            val localSet = setOf("cp", "ct", "pt", "del", "upper", "lower", "title", "date", "time", "count", "trim", "join", "split", "sort", "dedupe", "upside", "mirror", "bold", "italic", "rot13", "md5", "reverse", "undo")
-            val name = cmd.trigger.removePrefix("?").removePrefix("!").removePrefix("+")
-            return if (localSet.contains(name)) "Local" else "AI"
-        }
-        val p = cmd.prompt.trimStart()
-        return if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
-    }
-
-    // Show import/export result as toast
     importResult?.let { msg ->
         LaunchedEffect(msg) {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -115,236 +129,298 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
             .padding(horizontal = 16.dp)
             .padding(top = 24.dp)
     ) {
-        // Header row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Commands",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Row {
-                IconButton(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    importLauncher.launch(arrayOf("text/*", "text/csv"))
-                }) {
-                    Icon(Icons.Default.Download, contentDescription = "Import CSV", tint = MaterialTheme.colorScheme.onSurface)
-                }
-                IconButton(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showExportPicker = true
-                }) {
-                    Icon(Icons.Default.Share, contentDescription = "Export CSV", tint = MaterialTheme.colorScheme.onSurface)
-                }
-                IconButton(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    dialogState = Pair(false, null)
-                }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Command", tint = MaterialTheme.colorScheme.onSurface)
-                }
+        CommandHeader(
+            onImport = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                importLauncher.launch(arrayOf("text/*", "text/csv"))
+            },
+            onExport = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                showExportPicker = true
+            },
+            onAdd = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                dialogState = CommandDialogState.Add(allCommands.map { it.trigger }.toSet())
             }
-        }
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Filter chips
-        Row(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            filters.forEach { filter ->
-                val isSelected = filter == selectedFilter
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface)
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            selectedFilter = filter
-                        }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = filter,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+        CommandFilters(
+            selectedFilter = selectedFilter,
+            onFilterSelected = { filter ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                selectedFilter = filter
             }
-        }
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Import/Export result banner
-        importResult?.let { msg ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = msg, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { viewModel.clearImportResult() }) {
-                        Text("Dismiss", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        ImportResultBanner(
+            message = importResult,
+            onDismiss = { viewModel.clearImportResult() }
+        )
 
-        // Export dialog
         if (showExportPicker) {
-            Dialog(onDismissRequest = { showExportPicker = false }) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text("Export Commands", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Choose where to save the CSV file.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { showExportPicker = false }) {
-                                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Button(
-                                onClick = {
-                                    showExportPicker = false
-                                    exportLauncher.launch("rite-commands.csv")
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
-                            ) {
-                                Text("Choose Location", color = Color.Black)
-                            }
-                        }
-                    }
+            ExportDialog(
+                onDismiss = { showExportPicker = false },
+                onExport = {
+                    showExportPicker = false
+                    exportLauncher.launch("rite-commands.csv")
                 }
-            }
+            )
         }
 
-        // Command list
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            if (filteredCommands.isEmpty() && !isLoading) {
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(text = "No commands", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(text = "Tap + to add one", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            } else if (isLoading) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface)
-                    }
+            if (filteredCommands.isEmpty()) {
+                item(key = "empty") {
+                    EmptyCommandState()
                 }
             }
-            items(filteredCommands) { cmd ->
-                val type = getCommandType(cmd)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+            items(filteredCommands, key = { it.trigger }) { cmd ->
+                CommandItem(
+                    command = cmd,
+                    allCommands = allCommands,
+                    onDelete = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.removeCommand(cmd.trigger)
+                    },
+                    onEdit = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        dialogState = CommandDialogState.Edit(
+                            cmd.trigger,
+                            allCommands.filter { it.trigger != cmd.trigger }.map { it.trigger }.toSet()
+                        )
+                    }
+                )
+            }
+        }
+    }
+
+    when (val state = dialogState) {
+        is CommandDialogState.Hidden -> {}
+        is CommandDialogState.Add -> {
+            val onDismiss = remember { { dialogState = CommandDialogState.Hidden } }
+            val onSave = remember(state) {
+                { trigger: String, prompt: String ->
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.addCommand(Command(trigger, prompt, false))
+                    dialogState = CommandDialogState.Hidden
+                }
+            }
+
+            CommandDialog(
+                prefix = currentPrefix,
+                isEdit = false,
+                initialTrigger = "",
+                initialPrompt = "",
+                existingCommands = allCommands,
+                onDismiss = onDismiss,
+                onSave = onSave
+            )
+        }
+        is CommandDialogState.Edit -> {
+            val initialCommand = allCommands.find { it.trigger == state.trigger }
+            val existingCommands = remember(allCommands, state.trigger) {
+                allCommands.filter { it.trigger != state.trigger }
+            }
+            val onDismiss = remember { { dialogState = CommandDialogState.Hidden } }
+            val onSave = remember(state) {
+                { trigger: String, prompt: String ->
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.updateCommand(state.trigger, Command(trigger, prompt, false))
+                    dialogState = CommandDialogState.Hidden
+                }
+            }
+
+            CommandDialog(
+                prefix = currentPrefix,
+                isEdit = true,
+                initialTrigger = initialCommand?.trigger ?: "",
+                initialPrompt = initialCommand?.prompt ?: "",
+                existingCommands = existingCommands,
+                onDismiss = onDismiss,
+                onSave = onSave
+            )
+        }
+    }
+}
+
+@Composable
+private fun CommandHeader(onImport: () -> Unit, onExport: () -> Unit, onAdd: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Commands",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Row {
+            IconButton(onClick = onImport) {
+                Icon(DownloadIcon, contentDescription = "Import CSV", tint = MaterialTheme.colorScheme.onSurface)
+            }
+            IconButton(onClick = onExport) {
+                Icon(Icons.Default.Share, contentDescription = "Export CSV", tint = MaterialTheme.colorScheme.onSurface)
+            }
+            IconButton(onClick = onAdd) {
+                Icon(Icons.Default.Add, contentDescription = "Add Command", tint = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandFilters(selectedFilter: String, onFilterSelected: (String) -> Unit) {
+    val filters = remember { listOf("All", "AI", "Local", "Action") }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        filters.forEach { filter ->
+            val isSelected = filter == selectedFilter
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surface)
+                    .clickable(enabled = !isSelected) { onFilterSelected(filter) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = filter,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImportResultBanner(message: String?, onDismiss: () -> Unit) {
+    if (message != null) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = message, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun ExportDialog(onDismiss: () -> Unit, onExport: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text("Export Commands", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Choose where to save the CSV file.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Button(
+                        onClick = onExport,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.outlineVariant)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = type,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = cmd.trigger,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Text(
-                                text = cmd.prompt,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2
-                            )
-                        }
-                        if (!cmd.isBuiltIn) {
-                            Row {
-                                IconButton(onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    viewModel.removeCommand(cmd.trigger)
-                                }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                IconButton(onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    dialogState = Pair(true, cmd.trigger) // Open in Edit mode
-                                }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
+                        Text("Choose Location", color = MaterialTheme.colorScheme.background)
                     }
                 }
             }
         }
     }
+}
 
-    // Add/Edit Dialog
-    dialogState?.let { (isEdit, oldTrigger) ->
-        val initialTrigger = if (isEdit && oldTrigger != null) {
-            allCommands.find { it.trigger == oldTrigger }?.trigger ?: ""
-        } else ""
-        val initialPrompt = if (isEdit && oldTrigger != null) {
-            allCommands.find { it.trigger == oldTrigger }?.prompt ?: ""
-        } else ""
+@Composable
+private fun EmptyCommandState() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "No commands", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = "Tap + to add one", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
 
-        CommandDialog(
-            prefix = currentPrefix,
-            isEdit = isEdit,
-            initialTrigger = initialTrigger,
-            initialPrompt = initialPrompt,
-            existingCommands = if (isEdit) allCommands.filter { it.trigger != oldTrigger } else allCommands,
-            onDismiss = { dialogState = null },
-            onSave = { trigger, prompt ->
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                if (isEdit && oldTrigger != null) {
-                    viewModel.updateCommand(oldTrigger, Command(trigger, prompt, false))
-                } else {
-                    viewModel.addCommand(Command(trigger, prompt, false))
+@Composable
+private fun CommandItem(command: Command, allCommands: List<Command>, onDelete: () -> Unit, onEdit: () -> Unit) {
+    val type = remember(command) { getCommandType(command) }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = type,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = command.trigger,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
-                dialogState = null
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = command.prompt,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
             }
-        )
+            if (!command.isBuiltIn) {
+                Row {
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -405,8 +481,7 @@ fun CommandDialog(
                     Text(text = it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                 }
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                // Buttons row - Save on right
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -431,7 +506,7 @@ fun CommandDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
                     ) {
-                        Text(if (isEdit) "Update" else "Save", color = Color.Black)
+                        Text(if (isEdit) "Update" else "Save", color = MaterialTheme.colorScheme.background)
                     }
                 }
             }

@@ -10,23 +10,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.abs
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -36,6 +39,11 @@ import com.catamsp.rite.ui.CommandsScreen
 import com.catamsp.rite.ui.KeysScreen
 import com.catamsp.rite.ui.SettingsScreen
 import com.catamsp.rite.ui.theme.RiteTheme
+import com.catamsp.rite.viewmodel.CommandsViewModel
+import com.catamsp.rite.viewmodel.DashboardViewModel
+import com.catamsp.rite.viewmodel.KeysViewModel
+import com.catamsp.rite.viewmodel.SettingsViewModel
+import androidx.compose.runtime.Immutable
 
 class MainActivity : ComponentActivity() {
 
@@ -43,22 +51,37 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (!granted) {
-            // Open app settings so user can manually grant it
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", packageName, null)
             })
         }
     }
 
+    private val accessibilityPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Request CALL_PHONE permission at runtime
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED
         ) {
             callPhoneLauncher.launch(Manifest.permission.CALL_PHONE)
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, "android.permission.ACCESSIBILITY_SERVICE")
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                accessibilityPermLauncher.launch("android.permission.ACCESSIBILITY_SERVICE")
+            }
         }
 
         setContent {
@@ -69,20 +92,34 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Immutable
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Home)
-    object Keys : Screen("keys", "Keys", Icons.Default.Key)
-    object Commands : Screen("commands", "Commands", Icons.AutoMirrored.Filled.List)
-    object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+    data object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Home)
+    data object Keys : Screen("keys", "Keys", Icons.Default.Lock)
+    data object Commands : Screen("commands", "Commands", Icons.AutoMirrored.Filled.List)
+    data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
 @Composable
 fun RiteMainScreen() {
     val navController = rememberNavController()
-    val items = listOf(Screen.Dashboard, Screen.Keys, Screen.Commands, Screen.Settings)
+    val items = remember { listOf(Screen.Dashboard, Screen.Keys, Screen.Commands, Screen.Settings) }
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    val navBarColors = NavigationBarItemDefaults.colors(
+        selectedIconColor = MaterialTheme.colorScheme.primary,
+        selectedTextColor = MaterialTheme.colorScheme.primary,
+        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    val dashboardViewModel: DashboardViewModel = viewModel(LocalContext.current as ComponentActivity)
+    val commandsViewModel: CommandsViewModel = viewModel(LocalContext.current as ComponentActivity)
+    val keysViewModel: KeysViewModel = viewModel(LocalContext.current as ComponentActivity)
+    val settingsViewModel: SettingsViewModel = viewModel(LocalContext.current as ComponentActivity)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -103,13 +140,7 @@ fun RiteMainScreen() {
                                 restoreState = true
                             }
                         },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        colors = navBarColors
                     )
                 }
             }
@@ -120,10 +151,10 @@ fun RiteMainScreen() {
             startDestination = Screen.Dashboard.route,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Dashboard.route) { DashboardScreenPrototype() }
-            composable(Screen.Keys.route) { KeysScreen() }
-            composable(Screen.Commands.route) { CommandsScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Dashboard.route) { DashboardScreenPrototype(viewModel = dashboardViewModel) }
+            composable(Screen.Keys.route) { KeysScreen(viewModel = keysViewModel, settingsViewModel = settingsViewModel) }
+            composable(Screen.Commands.route) { CommandsScreen(viewModel = commandsViewModel) }
+            composable(Screen.Settings.route) { SettingsScreen(viewModel = settingsViewModel) }
         }
     }
 }

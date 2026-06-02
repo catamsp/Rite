@@ -21,6 +21,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -43,6 +44,7 @@ class AssistantService : AccessibilityService() {
     private var triggerLastChars = setOf<Char>()
     private var cachedPrefix = CommandManager.DEFAULT_PREFIX
     private var currentJob: Job? = null
+    private var debounceJob: Job? = null
     @Volatile
     private var lastOriginalText: String? = null
     private var lastTriggerRefresh = 0L
@@ -71,23 +73,26 @@ class AssistantService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) return
-        if (isProcessing.get()) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: isProcessing=true"); return }
+        if (isProcessing.get()) return
 
-        if (event.packageName == packageName) {
-            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: own app text field")
-            return
-        }
+        if (event.packageName == packageName) return
 
-        val source = event.source
-        if (source == null) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: source=null"); return }
-
+        val source = event.source ?: return
         val text = source.text?.toString()
-        if (text.isNullOrEmpty()) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: text=null or empty"); return }
-        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "TEXT received, len=${text.length}")
+        if (text.isNullOrEmpty()) return
+
+        debounceJob?.cancel()
+        debounceJob = serviceScope.launch {
+            delay(DEBOUNCE_MS)
+            withContext(Dispatchers.Main) { processTextChange(source, text) }
+        }
+    }
+
+    private fun processTextChange(source: AccessibilityNodeInfo, text: String) {
+        if (isProcessing.get()) return
 
         if (System.currentTimeMillis() - lastTriggerRefresh > TRIGGER_REFRESH_INTERVAL_MS) {
             updateTriggers()
-            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "Triggers refreshed")
         }
 
         val lastChar = text[text.length - 1]
@@ -97,22 +102,19 @@ class AssistantService : AccessibilityService() {
                 text.contains("!translate:") ||
                 text.contains("+translate:")
             if (!lastChar.isLetterOrDigit() && !hasTranslate && !hasIntentPrefix) {
-                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: lastChar not matched")
                 return
             }
             if (hasIntentPrefix && !lastChar.isLetterOrDigit()) {
-                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "Allowing intent-type text")
+                // Allow intent-type text
             }
         }
 
-        val command = commandManager.findCommand(text)
-        if (command == null) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: no command found"); return }
-        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "COMMAND: trigger='${command.trigger}', builtIn=${command.isBuiltIn}")
+        val command = commandManager.findCommand(text) ?: return
 
         val cleanText = text.substring(0, text.length - command.trigger.length).trim()
 
         if (command.trigger.endsWith("undo") && command.isBuiltIn) {
-            if (source.isPassword) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: password field"); return }
+            if (source.isPassword) return
             isProcessing.set(true)
             currentJob?.cancel()
             handleUndo(source, cleanText)
@@ -121,11 +123,9 @@ class AssistantService : AccessibilityService() {
 
         val mode = getCommandMode(command.trigger)
         val cmdName = extractCmdName(command.trigger, cachedPrefix)
-        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "mode=$mode, cmdName='$cmdName'")
 
         if (command.isBuiltIn && LOCAL_COMMANDS.contains(cmdName)) {
-            if (source.isPassword) { if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: password field"); return }
-            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "HANDLING: local command '$cmdName'")
+            if (source.isPassword) return
             isProcessing.set(true)
             currentJob?.cancel()
             currentJob = localCommandExecutor.execute(source, cleanText, cmdName, mode, command.trigger) {
@@ -135,17 +135,9 @@ class AssistantService : AccessibilityService() {
         }
 
         val isIntent = INTENT_PREFIXES.any { command.prompt.trimStart().startsWith(it) }
-        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "isIntent=$isIntent, cleanText empty=${cleanText.isEmpty()}")
-        if (!isIntent && (cleanText.isEmpty() || source.isPassword)) {
-            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: cleanText empty or password field")
-            return
-        }
-        if (isIntent && source.isPassword) {
-            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "SKIP: password field for intent")
-            return
-        }
+        if (!isIntent && (cleanText.isEmpty() || source.isPassword)) return
+        if (isIntent && source.isPassword) return
 
-        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "HANDLING: ${if (isIntent) "INTENT" else "AI"} command '${command.trigger}'")
         isProcessing.set(true)
         currentJob?.cancel()
         processCommand(source, cleanText, command)
@@ -179,25 +171,25 @@ class AssistantService : AccessibilityService() {
         }
 
         val mode = getCommandMode(command.trigger)
-        val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val providerType = prefs.getString("provider_type", "gemini") ?: "gemini"
-        val model: String
-        val endpoint: String
-
-        if (providerType == "custom") {
-            model = prefs.getString("custom_model", "") ?: ""
-            endpoint = prefs.getString("custom_endpoint", "") ?: ""
-            if (model.isBlank() || endpoint.isBlank()) {
-                serviceScope.launch { toastManager.show("Custom provider not configured. Set endpoint and model in Settings.") }
-                isProcessing.set(false)
-                return
-            }
-        } else {
-            model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
-            endpoint = ""
-        }
-
         currentJob = serviceScope.launch {
+            val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+            val providerType = prefs.getString("provider_type", "gemini") ?: "gemini"
+            val model: String
+            val endpoint: String
+
+            if (providerType == "custom") {
+                model = prefs.getString("custom_model", "") ?: ""
+                endpoint = prefs.getString("custom_endpoint", "") ?: ""
+                if (model.isBlank() || endpoint.isBlank()) {
+                    withContext(Dispatchers.Main) { toastManager.show("Custom provider not configured. Set endpoint and model in Settings.") }
+                    isProcessing.set(false)
+                    return@launch
+                }
+            } else {
+                model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
+                endpoint = ""
+            }
+
             val originalText = text
             var spinnerJob: Job? = null
             try {
@@ -370,17 +362,20 @@ class AssistantService : AccessibilityService() {
 
     override fun onInterrupt() {
         isProcessing.set(false)
+        debounceJob?.cancel()
         currentJob?.cancel()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        debounceJob?.cancel()
         toastManager.dismiss()
         serviceScope.cancel()
     }
 
     private companion object {
-        const val TRIGGER_REFRESH_INTERVAL_MS = 5_000L
+        const val DEBOUNCE_MS = 150L
+        const val TRIGGER_REFRESH_INTERVAL_MS = 30_000L
         const val DEFAULT_TEMPERATURE = 0.5
         const val ENABLE_DEBUG_LOGGING = false
         const val AI_COMMAND_TIMEOUT_MS = 90_000L
