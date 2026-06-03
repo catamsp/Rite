@@ -15,7 +15,6 @@ class OpenAICompatibleClient {
         var connection: HttpURLConnection? = null
         try {
             val baseUrl = endpoint.trimEnd('/')
-            // Try /models first as a lightweight check, fall back to /chat/completions
             connection = URL("$baseUrl/models")
                 .openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -29,7 +28,6 @@ class OpenAICompatibleClient {
                 return@withContext Result.success("Valid")
             }
 
-            // /models may not be available on all providers — try a minimal chat completion
             connection.disconnect()
             connection = null
 
@@ -60,9 +58,7 @@ class OpenAICompatibleClient {
                 chatConn.inputStream?.use { it.readBytes() }
                 Result.success("Valid")
             } else {
-                val errorBody = chatConn.errorStream?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                } ?: ""
+                val errorBody = ApiClientUtils.readErrorBody(chatConn.errorStream)
                 val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
                 val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
 
@@ -91,7 +87,39 @@ class OpenAICompatibleClient {
         apiKey: String,
         model: String,
         temperature: Double,
-        endpoint: String
+        endpoint: String,
+        useStructuredOutput: Boolean = false,
+        useJsonObjectMode: Boolean = false
+    ): Result<GenerateResult> = withContext(Dispatchers.IO) {
+        val result = doGenerate(prompt, text, apiKey, model, temperature, endpoint, useStructuredOutput, useJsonObjectMode)
+        var soFailed = false
+
+        val finalResult = if (useStructuredOutput && result.isFailure) {
+            val msg = result.exceptionOrNull()?.message ?: ""
+            val code = ApiClientUtils.extractHttpCode(msg)
+            if (code == 400 || code == 422) {
+                soFailed = true
+                val retry = doGenerate(prompt, text, apiKey, model, temperature, endpoint, false, false)
+                ApiClientUtils.stripHttpPrefix(retry)
+            } else {
+                ApiClientUtils.stripHttpPrefix(result)
+            }
+        } else {
+            ApiClientUtils.stripHttpPrefix(result)
+        }
+
+        finalResult.map { GenerateResult(it, soFailed) }
+    }
+
+    private suspend fun doGenerate(
+        prompt: String,
+        text: String,
+        apiKey: String,
+        model: String,
+        temperature: Double,
+        endpoint: String,
+        withStructured: Boolean,
+        withJsonObject: Boolean
     ): Result<String> = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
@@ -119,6 +147,29 @@ class OpenAICompatibleClient {
                 })
                 put("temperature", temperature)
                 put("max_tokens", 2048)
+                if (withStructured) {
+                    put("response_format", JSONObject().apply {
+                        put("type", "json_schema")
+                        put("json_schema", JSONObject().apply {
+                            put("name", "text_output")
+                            put("strict", true)
+                            put("schema", JSONObject().apply {
+                                put("type", "object")
+                                put("properties", JSONObject().apply {
+                                    put("text", JSONObject().apply {
+                                        put("type", "string")
+                                    })
+                                })
+                                put("required", JSONArray().apply { put("text") })
+                                put("additionalProperties", false)
+                            })
+                        })
+                    })
+                } else if (withJsonObject) {
+                    put("response_format", JSONObject().apply {
+                        put("type", "json_object")
+                    })
+                }
             }
 
             connection.outputStream.use { os ->
@@ -127,9 +178,7 @@ class OpenAICompatibleClient {
 
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
-                val response = connection.inputStream.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                }
+                val response = ApiClientUtils.readResponseBounded(connection.inputStream)
 
                 val jsonResponse = JSONObject(response)
                 val choices = jsonResponse.optJSONArray("choices")
@@ -139,6 +188,14 @@ class OpenAICompatibleClient {
                     var resultText = message?.optString("content", "") ?: ""
                     if (resultText.isBlank()) {
                         return@withContext Result.failure(Exception("Model returned empty response"))
+                    }
+                    if (withStructured || withJsonObject) {
+                        val extracted = ApiClientUtils.tryExtractStructuredText(resultText)
+                        if (extracted.first != null) {
+                            resultText = extracted.first!!
+                        } else if (extracted.second) {
+                            return@withContext Result.failure(Exception("Failed to parse structured response"))
+                        }
                     }
                     if (resultText.startsWith("```")) {
                         val lines = resultText.lines().toMutableList()
@@ -163,18 +220,14 @@ class OpenAICompatibleClient {
                 val msg = if (seconds != null) "Rate limit exceeded, retry after ${seconds}s" else "Rate limit exceeded"
                 Result.failure(Exception(msg))
             } else if (responseCode == 401 || responseCode == 403) {
-                val errorBody = connection.errorStream?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                } ?: ""
+                val errorBody = ApiClientUtils.readErrorBody(connection.errorStream)
                 val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
                 val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
                 val detail = if (apiMessage.isNotEmpty()) apiMessage else "Invalid API key"
-                Result.failure(Exception(detail))
+                Result.failure(Exception("HTTP $responseCode: $detail"))
             } else {
-                val error = connection.errorStream?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                } ?: "Unknown error"
-                Result.failure(Exception("Error $responseCode: $error"))
+                val error = ApiClientUtils.readErrorBody(connection.errorStream)
+                Result.failure(Exception("HTTP $responseCode: $error"))
             }
         } catch (e: Exception) {
             Result.failure(e)

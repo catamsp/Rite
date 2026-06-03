@@ -2,6 +2,12 @@ package com.catamsp.rite.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,7 +19,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +35,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -76,8 +86,13 @@ private fun getCommandType(cmd: Command): String {
         val name = cmd.trigger.removePrefix("?").removePrefix("!").removePrefix("+")
         return if (LOCAL_SET.contains(name)) "Local" else "AI"
     }
-    val p = cmd.prompt.trimStart()
-    return if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
+    return when (cmd.type) {
+        com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Replacer"
+        com.catamsp.rite.model.CommandType.AI -> {
+            val p = cmd.prompt.trimStart()
+            if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
+        }
+    }
 }
 
 @Composable
@@ -111,11 +126,20 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
     }
 
     var selectedFilter by remember { mutableStateOf("All") }
+    var searchQuery by remember { mutableStateOf("") }
+    var expandedIds by remember { mutableStateOf(emptySet<String>()) }
 
     val filteredCommands by remember {
         derivedStateOf {
-            if (selectedFilter == "All") allCommands
+            var result = if (selectedFilter == "All") allCommands
             else allCommands.filter { cmd -> getCommandType(cmd) == selectedFilter }
+            if (searchQuery.isNotBlank()) {
+                result = result.filter {
+                    it.trigger.contains(searchQuery, ignoreCase = true) ||
+                    it.prompt.contains(searchQuery, ignoreCase = true)
+                }
+            }
+            result
         }
     }
 
@@ -149,6 +173,23 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        if (allCommands.isNotEmpty()) {
+            CommandSearchBar(
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                expandedIds = expandedIds,
+                filteredCommands = filteredCommands,
+                onToggleExpandAll = {
+                    expandedIds = if (expandedIds.isEmpty()) {
+                        filteredCommands.map { it.trigger }.toSet()
+                    } else {
+                        emptySet()
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         CommandFilters(
             selectedFilter = selectedFilter,
             onFilterSelected = { filter ->
@@ -178,7 +219,16 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            if (filteredCommands.isEmpty()) {
+            if (filteredCommands.isEmpty() && searchQuery.isNotBlank()) {
+                item(key = "no-match") {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(text = "No matching commands", fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else if (filteredCommands.isEmpty()) {
                 item(key = "empty") {
                     EmptyCommandState()
                 }
@@ -187,6 +237,11 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                 CommandItem(
                     command = cmd,
                     allCommands = allCommands,
+                    isExpanded = cmd.trigger in expandedIds,
+                    onToggleExpand = {
+                        expandedIds = if (cmd.trigger in expandedIds) expandedIds - cmd.trigger
+                        else expandedIds + cmd.trigger
+                    },
                     onDelete = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         commandToDelete = cmd.trigger
@@ -208,9 +263,9 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
         is CommandDialogState.Add -> {
             val onDismiss = remember { { dialogState = CommandDialogState.Hidden } }
             val onSave = remember(state) {
-                { trigger: String, prompt: String ->
+                { trigger: String, prompt: String, type: com.catamsp.rite.model.CommandType ->
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.addCommand(Command(trigger, prompt, false))
+                    viewModel.addCommand(Command(trigger, prompt, false, type))
                     dialogState = CommandDialogState.Hidden
                 }
             }
@@ -232,9 +287,9 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
             }
             val onDismiss = remember { { dialogState = CommandDialogState.Hidden } }
             val onSave = remember(state) {
-                { trigger: String, prompt: String ->
+                { trigger: String, prompt: String, type: com.catamsp.rite.model.CommandType ->
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.updateCommand(state.trigger, Command(trigger, prompt, false))
+                    viewModel.updateCommand(state.trigger, Command(trigger, prompt, false, type))
                     dialogState = CommandDialogState.Hidden
                 }
             }
@@ -303,7 +358,7 @@ private fun CommandHeader(onImport: () -> Unit, onExport: () -> Unit, onAdd: () 
 
 @Composable
 private fun CommandFilters(selectedFilter: String, onFilterSelected: (String) -> Unit) {
-    val filters = remember { listOf("All", "AI", "Local", "Action") }
+    val filters = remember { listOf("All", "AI", "Local", "Action", "Replacer") }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -322,6 +377,73 @@ private fun CommandFilters(selectedFilter: String, onFilterSelected: (String) ->
                     fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = if (isSelected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandSearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    expandedIds: Set<String>,
+    filteredCommands: List<Command>,
+    onToggleExpandAll: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            androidx.compose.foundation.text.BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier.weight(1f),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 14.sp
+                ),
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Search commands...",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
+            )
+            if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { onSearchQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Clear",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            IconButton(onClick = onToggleExpandAll) {
+                Icon(
+                    imageVector = if (expandedIds.isEmpty()) Icons.AutoMirrored.Filled.List else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (expandedIds.isEmpty()) "Expand all" else "Collapse all",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -391,21 +513,22 @@ private fun EmptyCommandState() {
 }
 
 @Composable
-private fun CommandItem(command: Command, allCommands: List<Command>, onDelete: () -> Unit, onEdit: () -> Unit) {
+private fun CommandItem(command: Command, allCommands: List<Command>, isExpanded: Boolean, onToggleExpand: () -> Unit, onDelete: () -> Unit, onEdit: () -> Unit) {
     val type = remember(command) { getCommandType(command) }
     Card(
         modifier = Modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .clickable { onToggleExpand() },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(14.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
@@ -427,22 +550,29 @@ private fun CommandItem(command: Command, allCommands: List<Command>, onDelete: 
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                    text = command.prompt,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
+                if (!command.isBuiltIn) {
+                    Row {
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
-            if (!command.isBuiltIn) {
-                Row {
-                    IconButton(onClick = onDelete) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(animationSpec = tween(250), expandFrom = Alignment.Top) + fadeIn(tween(200)),
+                exit = shrinkVertically(animationSpec = tween(250), shrinkTowards = Alignment.Top) + fadeOut(tween(150))
+            ) {
+                Column {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = command.prompt,
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -457,10 +587,11 @@ fun CommandDialog(
     initialPrompt: String,
     existingCommands: List<Command>,
     onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit
+    onSave: (String, String, com.catamsp.rite.model.CommandType) -> Unit
 ) {
     var trigger by remember { mutableStateOf(initialTrigger) }
     var prompt by remember { mutableStateOf(initialPrompt) }
+    var selectedType by remember { mutableStateOf(com.catamsp.rite.model.CommandType.AI) }
     var error by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -502,6 +633,25 @@ fun CommandDialog(
                         unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                     )
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    com.catamsp.rite.model.CommandType.entries.forEachIndexed { index, type ->
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = com.catamsp.rite.model.CommandType.entries.size),
+                            onClick = { selectedType = type },
+                            selected = selectedType == type,
+                            colors = SegmentedButtonDefaults.colors(
+                                activeContainerColor = MaterialTheme.colorScheme.onSurface,
+                                activeContentColor = MaterialTheme.colorScheme.background
+                            )
+                        ) {
+                            Text(when (type) {
+                                com.catamsp.rite.model.CommandType.AI -> "AI"
+                                com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Text Replacer"
+                            })
+                        }
+                    }
+                }
                 error?.let {
                     Text(text = it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
                 }
@@ -523,11 +673,22 @@ fun CommandDialog(
                                 error = "Trigger must start with '$prefix'"
                                 return@Button
                             }
+                            if (t.length <= prefix.length) {
+                                error = "Trigger must be longer than just the prefix"
+                                return@Button
+                            }
                             if (existingCommands.any { it.trigger == t }) {
                                 error = "This trigger already exists"
                                 return@Button
                             }
-                            onSave(t, p)
+                            val conflicting = existingCommands.firstOrNull {
+                                it.trigger.startsWith(t) || t.startsWith(it.trigger)
+                            }
+                            if (conflicting != null) {
+                                error = "Conflicts with existing trigger '${conflicting.trigger}'"
+                                return@Button
+                            }
+                            onSave(t, p, selectedType)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
                     ) {

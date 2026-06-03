@@ -28,9 +28,7 @@ class GeminiClient {
                 connection.inputStream?.use { it.readBytes() }
                 Result.success("Valid")
             } else {
-                val errorBody = connection.errorStream?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                } ?: ""
+                val errorBody = ApiClientUtils.readErrorBody(connection.errorStream)
                 val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
                 val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
 
@@ -58,7 +56,36 @@ class GeminiClient {
         text: String,
         apiKey: String,
         model: String,
-        temperature: Double
+        temperature: Double,
+        useStructuredOutput: Boolean = false
+    ): Result<GenerateResult> = withContext(Dispatchers.IO) {
+        val result = doGenerate(prompt, text, apiKey, model, temperature, useStructuredOutput)
+        var soFailed = false
+
+        val finalResult = if (useStructuredOutput && result.isFailure) {
+            val msg = result.exceptionOrNull()?.message ?: ""
+            val code = ApiClientUtils.extractHttpCode(msg)
+            if (code == 400 || code == 422) {
+                soFailed = true
+                val retry = doGenerate(prompt, text, apiKey, model, temperature, false)
+                stripHttpPrefix(retry)
+            } else {
+                stripHttpPrefix(result)
+            }
+        } else {
+            stripHttpPrefix(result)
+        }
+
+        finalResult.map { GenerateResult(it, soFailed) }
+    }
+
+    private suspend fun doGenerate(
+        prompt: String,
+        text: String,
+        apiKey: String,
+        model: String,
+        temperature: Double,
+        withStructured: Boolean
     ): Result<String> = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
@@ -91,6 +118,18 @@ class GeminiClient {
                 put("generationConfig", JSONObject().apply {
                     put("temperature", temperature)
                     put("maxOutputTokens", 2048)
+                    if (withStructured) {
+                        put("responseMimeType", "application/json")
+                        put("responseSchema", JSONObject().apply {
+                            put("type", "object")
+                            put("properties", JSONObject().apply {
+                                put("text", JSONObject().apply {
+                                    put("type", "string")
+                                })
+                            })
+                            put("required", JSONArray().apply { put("text") })
+                        })
+                    }
                 })
             }
 
@@ -100,9 +139,7 @@ class GeminiClient {
 
             val responseCode = connection.responseCode
             if (responseCode in 200..299) {
-                val response = connection.inputStream.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                }
+                val response = ApiClientUtils.readResponseBounded(connection.inputStream)
 
                 val jsonResponse = JSONObject(response)
                 val candidates = jsonResponse.optJSONArray("candidates")
@@ -114,6 +151,14 @@ class GeminiClient {
                         var resultText = parts.getJSONObject(0).optString("text", "")
                         if (resultText.isBlank()) {
                             return@withContext Result.failure(Exception("Model returned empty response"))
+                        }
+                        if (withStructured) {
+                            val extracted = ApiClientUtils.tryExtractStructuredText(resultText)
+                            if (extracted.first != null) {
+                                resultText = extracted.first!!
+                            } else if (extracted.second) {
+                                return@withContext Result.failure(Exception("Failed to parse structured response"))
+                            }
                         }
                         if (resultText.startsWith("```")) {
                             val lines = resultText.lines().toMutableList()
@@ -141,23 +186,28 @@ class GeminiClient {
                 val msg = if (seconds != null) "Rate limit exceeded, retry after ${seconds}s" else "Rate limit exceeded"
                 Result.failure(Exception(msg))
             } else if (responseCode == 400 || responseCode == 403) {
-                val errorBody = connection.errorStream?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                } ?: ""
+                val errorBody = ApiClientUtils.readErrorBody(connection.errorStream)
                 val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
                 val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
                 val detail = if (apiMessage.isNotEmpty()) apiMessage else if (responseCode == 403) "Invalid API key" else "Bad request"
-                Result.failure(Exception(detail))
+                Result.failure(Exception("HTTP $responseCode: $detail"))
             } else {
-                val error = connection.errorStream?.use { stream ->
-                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
-                } ?: "Unknown error"
-                Result.failure(Exception("Error $responseCode: $error"))
+                val error = ApiClientUtils.readErrorBody(connection.errorStream)
+                Result.failure(Exception("HTTP $responseCode: $error"))
             }
         } catch (e: Exception) {
             Result.failure(e)
         } finally {
             connection?.disconnect()
         }
+    }
+
+    private fun stripHttpPrefix(result: Result<String>): Result<String> {
+        if (result.isFailure) {
+            val msg = result.exceptionOrNull()?.message ?: ""
+            val cleaned = msg.replaceFirst(Regex("""^HTTP_\d+:\s*"""), "").replaceFirst(Regex("""^HTTP \d+:\s*"""), "")
+            if (cleaned != msg) return Result.failure(Exception(cleaned))
+        }
+        return result
     }
 }

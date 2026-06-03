@@ -135,6 +135,30 @@ class AssistantService : AccessibilityService() {
             return
         }
 
+        if (command.type == com.catamsp.rite.model.CommandType.TEXT_REPLACER) {
+            if (source.isPassword) return
+            isProcessing.set(true)
+            currentJob?.cancel()
+            currentJob = serviceScope.launch {
+                try {
+                    withContext(Dispatchers.Main) {
+                        val result = applyMode(cleanText, command.prompt, mode)
+                        textHelper.replaceText(source, result)
+                    }
+                    performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    toastManager.show("Text replacement failed: ${e.message}")
+                } finally {
+                    withContext(NonCancellable + Dispatchers.Main) {
+                        isProcessing.set(false)
+                    }
+                }
+            }
+            return
+        }
+
         val isIntent = INTENT_PREFIXES.any { command.prompt.trimStart().startsWith(it) }
         if (!isIntent && (cleanText.isEmpty() || source.isPassword)) return
         if (isIntent && source.isPassword) return
@@ -200,6 +224,10 @@ class AssistantService : AccessibilityService() {
             }
 
             val originalText = text
+            val useStructuredOutput = run {
+                val disabledAt = prefs.getLong("structured_output_disabled_at", 0L)
+                System.currentTimeMillis() - disabledAt > 86_400_000L
+            }
             var spinnerJob: Job? = null
             try {
                 withTimeout(AI_COMMAND_TIMEOUT_MS) {
@@ -215,16 +243,21 @@ class AssistantService : AccessibilityService() {
                         }
 
                         val result = when (providerType) {
-                            ProviderType.GROQ, ProviderType.CUSTOM -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint)
-                            else -> client.generate(command.prompt, text, key, model, temperature)
+                            ProviderType.GROQ -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint, useStructuredOutput, useStructuredOutput)
+                            ProviderType.CUSTOM -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint, useStructuredOutput, false)
+                            else -> client.generate(command.prompt, text, key, model, temperature, useStructuredOutput)
                         }
 
                         if (result.isSuccess) {
+                            val generateResult = result.getOrThrow()
                             spinnerJob!!.cancel()
                             spinnerJob = null
                             lastOriginalText = originalText
-                            textHelper.replaceText(source, applyMode(originalText, result.getOrThrow(), mode))
+                            textHelper.replaceText(source, applyMode(originalText, generateResult.text, mode))
                             performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            if (generateResult.structuredOutputFailed) {
+                                prefs.edit().putLong("structured_output_disabled_at", System.currentTimeMillis()).apply()
+                            }
                             succeeded = true
                             break
                         }
@@ -249,7 +282,7 @@ class AssistantService : AccessibilityService() {
                         textHelper.replaceText(source, originalText)
                         performHapticFeedback(HapticFeedbackConstants.REJECT)
                         if (lastErrorMsg != null) {
-                            toastManager.show("Rite Error: $lastErrorMsg")
+                            toastManager.show(mapErrorMessage(lastErrorMsg))
                         } else {
                             val waitMs = keyManager.getShortestWaitTimeMs()
                             when {
@@ -274,7 +307,7 @@ class AssistantService : AccessibilityService() {
                 try { textHelper.replaceText(source, originalText) } catch (_: Exception) {
                     toastManager.show("Could not restore original text")
                 }
-                toastManager.show("Rite Error: ${e.message}")
+                toastManager.show(mapErrorMessage(e.message ?: "Unknown error"))
             } finally {
                 withContext(NonCancellable + Dispatchers.Main) {
                     spinnerJob?.cancel()
@@ -380,6 +413,38 @@ class AssistantService : AccessibilityService() {
         debounceJob?.cancel()
         toastManager.dismiss()
         serviceScope.cancel()
+    }
+
+    private fun mapErrorMessage(raw: String): String {
+        val lower = raw.lowercase()
+        return when {
+            lower.contains("permission_denied") || lower.contains("permission denied") ->
+                "Your API key doesn't have access to this model."
+            lower.contains("invalid api key") || lower.contains("api key not valid") || lower.contains("api_key_invalid") ->
+                "Invalid API key. Please check your key in Settings."
+            lower.contains("rate limit") || lower.contains("resource_exhausted") || lower.contains("quota") ->
+                "Rate limited. Try again shortly."
+            lower.contains("model not found") || lower.contains("model_not_found") || lower.contains("not found for api version") ->
+                "Model not found. Check your model selection in Settings."
+            lower.contains("safety") || lower.contains("content_filter") || lower.contains("recitation") ||
+                lower.contains("blocked by safety") || lower.contains("finish_reason: safety") ||
+                lower.contains("failed_generation") ->
+                "Response blocked by safety filters. Try rephrasing."
+            lower.contains("empty response") || lower.contains("no content found") || lower.contains("no choices found") ->
+                "Model returned an empty response. Try again."
+            lower.contains("timeout") || lower.contains("timed out") ->
+                "Request timed out. Check your connection."
+            lower.contains("unable to resolve host") || lower.contains("no address associated") ||
+                lower.contains("network is unreachable") || lower.contains("no route to host") ||
+                lower.contains("software caused connection abort") || lower.contains("connection reset") ||
+                lower.contains("broken pipe") ->
+                "No internet connection."
+            lower.contains("connection refused") || lower.contains("connect failed") ->
+                "Could not reach the API. Check your endpoint URL."
+            lower.contains("bad request") ->
+                "Request failed. Check your settings."
+            else -> raw
+        }
     }
 
     private companion object {

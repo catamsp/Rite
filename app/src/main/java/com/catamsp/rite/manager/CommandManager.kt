@@ -3,6 +3,7 @@
 import android.content.Context
 import android.content.SharedPreferences
 import com.catamsp.rite.model.Command
+import com.catamsp.rite.model.CommandType
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -109,7 +110,8 @@ class CommandManager(context: Context) {
         val customCommands = mutableListOf<Command>()
         for (i in 0 until arr.length()) {
             val obj = arr.getJSONObject(i)
-            customCommands.add(Command(obj.getString("trigger"), obj.getString("prompt"), false))
+            val type = try { CommandType.valueOf(obj.optString("type", CommandType.AI.name)) } catch (_: Exception) { CommandType.AI }
+            customCommands.add(Command(obj.getString("trigger"), obj.getString("prompt"), false, type))
         }
         val result = getBuiltInCommands() + customCommands
         cachedCommands = result
@@ -128,6 +130,7 @@ class CommandManager(context: Context) {
         val newObj = JSONObject()
         newObj.put("trigger", command.trigger)
         newObj.put("prompt", command.prompt)
+        newObj.put("type", command.type.name)
         arr.put(newObj)
         prefs.edit().putString("custom_commands", arr.toString()).apply()
         invalidateCache()
@@ -157,6 +160,7 @@ class CommandManager(context: Context) {
                 val newObj = JSONObject()
                 newObj.put("trigger", newCommand.trigger)
                 newObj.put("prompt", newCommand.prompt)
+                newObj.put("type", newCommand.type.name)
                 newArr.put(newObj)
             } else {
                 newArr.put(obj)
@@ -247,7 +251,7 @@ class CommandManager(context: Context) {
             .flatMap { cmd ->
                 val modeTriggers = listOf('!', '+').map { mp ->
                     cmd.trigger.replaceFirst(prefix, mp.toString()) to Command(
-                        cmd.trigger.replaceFirst(prefix, mp.toString()), cmd.prompt, cmd.isBuiltIn
+                        cmd.trigger.replaceFirst(prefix, mp.toString()), cmd.prompt, cmd.isBuiltIn, cmd.type
                     )
                 }
                 listOf(cmd.trigger to cmd) + modeTriggers
