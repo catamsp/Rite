@@ -13,6 +13,7 @@ import com.catamsp.rite.api.OpenAICompatibleClient
 import com.catamsp.rite.manager.CommandManager
 import com.catamsp.rite.manager.KeyManager
 import com.catamsp.rite.model.Command
+import com.catamsp.rite.model.ProviderType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -173,21 +174,29 @@ class AssistantService : AccessibilityService() {
         val mode = getCommandMode(command.trigger)
         currentJob = serviceScope.launch {
             val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-            val providerType = prefs.getString("provider_type", "gemini") ?: "gemini"
+            val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
+            val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
             val model: String
             val endpoint: String
 
-            if (providerType == "custom") {
-                model = prefs.getString("custom_model", "") ?: ""
-                endpoint = prefs.getString("custom_endpoint", "") ?: ""
-                if (model.isBlank() || endpoint.isBlank()) {
-                    withContext(Dispatchers.Main) { toastManager.show("Custom provider not configured. Set endpoint and model in Settings.") }
-                    isProcessing.set(false)
-                    return@launch
+            when (providerType) {
+                ProviderType.CUSTOM -> {
+                    model = prefs.getString("custom_model", "") ?: ""
+                    endpoint = prefs.getString("custom_endpoint", "") ?: ""
+                    if (model.isBlank() || endpoint.isBlank()) {
+                        withContext(Dispatchers.Main) { toastManager.show("Custom provider not configured. Set endpoint and model in Settings.") }
+                        isProcessing.set(false)
+                        return@launch
+                    }
                 }
-            } else {
-                model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
-                endpoint = ""
+                ProviderType.GROQ -> {
+                    model = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"
+                    endpoint = "https://api.groq.com/openai/v1"
+                }
+                else -> {
+                    model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
+                    endpoint = ""
+                }
             }
 
             val originalText = text
@@ -205,14 +214,14 @@ class AssistantService : AccessibilityService() {
                             spinnerJob = textHelper.startInlineSpinner(source, originalText)
                         }
 
-                        val result = if (providerType == "custom") {
-                            openAIClient.generate(command.prompt, text, key, model, DEFAULT_TEMPERATURE, endpoint)
-                        } else {
-                            client.generate(command.prompt, text, key, model, DEFAULT_TEMPERATURE)
+                        val result = when (providerType) {
+                            ProviderType.GROQ, ProviderType.CUSTOM -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint)
+                            else -> client.generate(command.prompt, text, key, model, temperature)
                         }
 
                         if (result.isSuccess) {
-                            spinnerJob?.cancel(); spinnerJob = null
+                            spinnerJob!!.cancel()
+                            spinnerJob = null
                             lastOriginalText = originalText
                             textHelper.replaceText(source, applyMode(originalText, result.getOrThrow(), mode))
                             performHapticFeedback(HapticFeedbackConstants.CONFIRM)
@@ -376,7 +385,6 @@ class AssistantService : AccessibilityService() {
     private companion object {
         const val DEBOUNCE_MS = 150L
         const val TRIGGER_REFRESH_INTERVAL_MS = 30_000L
-        const val DEFAULT_TEMPERATURE = 0.5
         const val ENABLE_DEBUG_LOGGING = false
         const val AI_COMMAND_TIMEOUT_MS = 90_000L
         val INTENT_PREFIXES = listOf("app:", "tel:", "sms:", "mailto:", "https://", "http://")

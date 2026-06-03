@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -91,6 +92,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
 
     var dialogState by remember { mutableStateOf<CommandDialogState>(CommandDialogState.Hidden) }
     var showExportPicker by remember { mutableStateOf(false) }
+    var commandToDelete by remember { mutableStateOf<String?>(null) }
 
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -126,6 +128,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer { }
             .padding(horizontal = 16.dp)
             .padding(top = 24.dp)
     ) {
@@ -186,7 +189,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                     allCommands = allCommands,
                     onDelete = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.removeCommand(cmd.trigger)
+                        commandToDelete = cmd.trigger
                     },
                     onEdit = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -246,6 +249,28 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                 onSave = onSave
             )
         }
+    }
+
+    commandToDelete?.let { triggerToDelete ->
+        AlertDialog(
+            onDismissRequest = { commandToDelete = null },
+            title = { Text("Delete Command") },
+            text = { Text("Are you sure you want to delete this command?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.removeCommand(triggerToDelete)
+                    commandToDelete = null
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { commandToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

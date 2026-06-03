@@ -1,0 +1,92 @@
+<resources>
+    <string name="app_name">SwiftSlate</string>
+    <string name="accessibility_service_label">SwiftSlate सहायक</string>
+    <string name="accessibility_service_desc">ट्रिगर कमांड टाइप करने पर सिस्टम-व्यापी AI टेक्स्ट प्रतिस्थापन प्रदान करता है।</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">डैशबोर्ड</string>
+    <string name="service_status_active">सक्रिय</string>
+    <string name="service_status_inactive">निष्क्रिय</string>
+    <string name="service_enable">सक्रिय करें</string>
+    <string name="dashboard_api_keys_title">API कुंजियाँ</string>
+    <string name="dashboard_keys_configured">%1$d कुंजियाँ कॉन्फ़िगर की गईं</string>
+    <string name="dashboard_add_key_hint">शुरू करने के लिए एक API कुंजी जोड़ें।</string>
+
+    <!-- Keys -->
+    <string name="keys_title">API कुंजियाँ</string>
+    <string name="keys_api_key_label">API कुंजी</string>
+    <string name="keys_testing">परीक्षण हो रहा है…</string>
+    <string name="keys_add_key">कुंजी जोड़ें</string>
+    <string name="keys_valid_added">मान्य कुंजी जोड़ी गई!</string>
+    <string name="keys_already_added">यह कुंजी पहले से जोड़ी जा चुकी है</string>
+    <string name="keys_validation_failed">सत्यापन विफल</string>
+    <string name="keys_get_api_key">अपनी %1$s API कुंजी प्राप्त करें ↗</string>
+
+    <!-- Commands -->
+    <string name="commands_title">कमांड</string>
+    <string name="commands_add_custom_title">कस्टम कमांड जोड़ें</string>
+    <string name="commands_trigger_label">ट्रिगर (जैसे, %1$scode)</string>
+    <string name="commands_prompt_label">प्रॉम्प्ट (जैसे, कविता के रूप में लिखें)</string>
+    <string name="commands_add_command">कमांड जोड़ें</string>
+    <string name="commands_delete_command">कमांड हटाएँ</string>
+    <string name="commands_edit_command">संपादित करें</string>
+    <string name="commands_save_command">कमांड सहेजें</string>
+    <string name="commands_cancel">रद्द करें</string>
+    <string name="commands_type_ai">AI</string>
+    <string name="commands_type_replacer">लोकल</string>
+    <string name="commands_replacement_label">प्रतिस्थापन टेक्स्ट (जैसे, myemail@example.com)</string>
+    <string name="commands_built_in">बिल्ट-इन</string>
+    <string name="commands_error_prefix">ट्रिगर \'%1$s\' से शुरू होना चाहिए</string>
+    <string name="commands_error_duplicate">इस ट्रिगर वाला कमांड पहले से मौजूद है</string>
+    <string name="commands_error_conflict">मौजूदा कमांड \'%1$s\' से विरोध — एक ट्रिगर दूसरे का प्रीफ़िक्स है</string>
+    <string name="commands_error_empty_trigger">प्रीफ़िक्स के बाद ट्रिगर का नाम होना चाहिए</string>
+
+    <!-- Settings -->
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="settings_provider_title">प्रदाता</string>
+    <string name="settings_provider_gemini">Google Gemini</string>
+    <string name="settings_provider_groq">Groq</string>
+    <string name="settings_provider_custom">कस्टम (OpenAI संगत)</string>
+    <string name="settings_model_title">मॉडल</string>
+    <string name="settings_endpoint_title">Endpoint</string>
+    <string name="settings_endpoint_placeholder">https://api.example.com/v1</string>
+    <string name="settings_model_placeholder">gpt-4o, claude-3-haiku, आदि।</string>
+    <string name="settings_trigger_prefix_desc">कमांड नाम से पहले का चिह्न (जैसे, %1$sfix)।</string>
+    <string name="settings_prefix_error_length">बिल्कुल 1 वर्ण होना चाहिए</string>
+    <string name="settings_prefix_error_whitespace">रिक्त स्थान नहीं हो सकता</string>
+    <string name="settings_prefix_error_alphanumeric">अक्षर या अंक नहीं हो सकता</string>
+    <string name="settings_endpoint_error_scheme">https:// से शुरू होना चाहिए</string>
+    <string name="settings_endpoint_error_spaces">URL में रिक्त स्थान नहीं हो सकते</string>
+
+    <!-- Backup -->
+    <string name="backup_desc">अपने कस्टम कमांड को JSON फ़ाइल के रूप में निर्यात या आयात करें।</string>
+    <string name="backup_export">निर्यात करें</string>
+    <string name="backup_import">आयात करें</string>
+    <string name="backup_export_success">कमांड सफलतापूर्वक निर्यात किए गए</string>
+    <string name="backup_import_success">कमांड सफलतापूर्वक आयात किए गए</string>
+    <string name="backup_import_error">अमान्य बैकअप फ़ाइल</string>
+    <string name="keys_keystore_error">इस डिवाइस पर सुरक्षित कुंजी संग्रहण उपलब्ध नहीं है। कुंजियाँ सहेजी नहीं जा सकतीं।</string>
+    <string name="backup_import_confirm">यह आपके सभी मौजूदा कस्टम कमांड को बदल देगा। जारी रखें?</string>
+    <string name="backup_import_cancel">रद्द करें</string>
+    <string name="settings_check_updates">अपडेट की जाँच करें</string>
+    <string name="commands_collapse">संक्षिप्त करें</string>
+    <string name="commands_expand">विस्तार करें</string>
+
+    <!-- Delete confirmation -->
+    <string name="delete_confirm_command_title">यह कमांड हटाएँ?</string>
+    <string name="delete_confirm_key_title">यह API कुंजी हटाएँ?</string>
+    <string name="delete_confirm_message">यह क्रिया पूर्ववत नहीं की जा सकती।</string>
+    <string name="delete_confirm_button">हटाएँ</string>
+    <string name="backup_export_error">निर्यात विफल</string>
+    <string name="commands_search_hint">कमांड खोजें…</string>
+    <string name="commands_search_close">खोज बंद करें</string>
+    <string name="commands_search_empty">कोई कमांड नहीं मिला</string>
+    <string name="keys_empty">कोई API कुंजी नहीं जोड़ी गई</string>
+    <string name="dashboard_monthly_requests">इस महीने</string>
+    <string name="dashboard_favorite_command">शीर्ष कमांड</string>
+    <string name="dashboard_no_data">—</string>
+    <string name="dashboard_last_7_days">पिछले 7 दिन</string>
+    <string name="settings_temperature_title">तापमान</string>
+    <string name="settings_made_by">Musheer Alam द्वारा प्यार से बनाया गया</string>
+    <string name="settings_sponsor">GitHub पर प्रायोजित करें</string>
+</resources>

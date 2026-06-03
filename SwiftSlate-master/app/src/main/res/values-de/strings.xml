@@ -1,0 +1,92 @@
+<resources>
+    <string name="app_name">SwiftSlate</string>
+    <string name="accessibility_service_label">SwiftSlate Assistent</string>
+    <string name="accessibility_service_desc">Bietet systemweite KI-Textersetzungen, wenn Auslösebefehle eingegeben werden.</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">Dashboard</string>
+    <string name="service_status_active">Aktiv</string>
+    <string name="service_status_inactive">Inaktiv</string>
+    <string name="service_enable">Aktivieren</string>
+    <string name="dashboard_api_keys_title">API-Schlüssel</string>
+    <string name="dashboard_keys_configured">%1$d Schlüssel konfiguriert</string>
+    <string name="dashboard_add_key_hint">Füge einen API-Schlüssel hinzu, um zu beginnen.</string>
+
+    <!-- Keys -->
+    <string name="keys_title">API-Schlüssel</string>
+    <string name="keys_api_key_label">API-Schlüssel</string>
+    <string name="keys_testing">Wird getestet…</string>
+    <string name="keys_add_key">Schlüssel hinzufügen</string>
+    <string name="keys_valid_added">Gültiger Schlüssel hinzugefügt!</string>
+    <string name="keys_already_added">Dieser Schlüssel wurde bereits hinzugefügt</string>
+    <string name="keys_validation_failed">Validierung fehlgeschlagen</string>
+    <string name="keys_get_api_key">Hol dir deinen %1$s API-Schlüssel ↗</string>
+
+    <!-- Commands -->
+    <string name="commands_title">Befehle</string>
+    <string name="commands_add_custom_title">Benutzerdefinierten Befehl hinzufügen</string>
+    <string name="commands_trigger_label">Trigger (z. B. %1$scode)</string>
+    <string name="commands_prompt_label">Prompt (z. B. Als Gedicht umschreiben)</string>
+    <string name="commands_add_command">Befehl hinzufügen</string>
+    <string name="commands_delete_command">Löschen</string>
+    <string name="commands_edit_command">Bearbeiten</string>
+    <string name="commands_save_command">Befehl speichern</string>
+    <string name="commands_cancel">Abbrechen</string>
+    <string name="commands_type_ai">KI</string>
+    <string name="commands_type_replacer">Lokal</string>
+    <string name="commands_replacement_label">Ersetzungstext (z. B. myemail@example.com)</string>
+    <string name="commands_built_in">Integriert</string>
+    <string name="commands_error_prefix">Trigger muss mit \'%1$s\' beginnen</string>
+    <string name="commands_error_duplicate">Ein Befehl mit diesem Trigger existiert bereits</string>
+    <string name="commands_error_conflict">Konflikt mit bestehendem Befehl \'%1$s\' — ein Trigger ist ein Präfix des anderen</string>
+    <string name="commands_error_empty_trigger">Trigger muss einen Namen nach dem Präfix haben</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_provider_title">Anbieter</string>
+    <string name="settings_provider_gemini">Google Gemini</string>
+    <string name="settings_provider_groq">Groq</string>
+    <string name="settings_provider_custom">Benutzerdefiniert (OpenAI-kompatibel)</string>
+    <string name="settings_model_title">Modell</string>
+    <string name="settings_endpoint_title">Endpoint</string>
+    <string name="settings_endpoint_placeholder">https://api.example.com/v1</string>
+    <string name="settings_model_placeholder">gpt-4o, claude-3-haiku usw.</string>
+    <string name="settings_trigger_prefix_desc">Symbol vor Befehlsnamen (z. B. %1$sfix).</string>
+    <string name="settings_prefix_error_length">Muss genau 1 Zeichen lang sein</string>
+    <string name="settings_prefix_error_whitespace">Darf kein Leerzeichen sein</string>
+    <string name="settings_prefix_error_alphanumeric">Darf kein Buchstabe oder eine Ziffer sein</string>
+    <string name="settings_endpoint_error_scheme">Muss mit https:// beginnen</string>
+    <string name="settings_endpoint_error_spaces">URL darf keine Leerzeichen enthalten</string>
+
+    <!-- Backup -->
+    <string name="backup_desc">Exportiere oder importiere deine benutzerdefinierten Befehle als JSON-Datei.</string>
+    <string name="backup_export">Exportieren</string>
+    <string name="backup_import">Importieren</string>
+    <string name="backup_export_success">Befehle erfolgreich exportiert</string>
+    <string name="backup_import_success">Befehle erfolgreich importiert</string>
+    <string name="backup_import_error">Ungültige Sicherungsdatei</string>
+    <string name="keys_keystore_error">Sicherer Schlüsselspeicher ist auf diesem Gerät nicht verfügbar. Schlüssel können nicht gespeichert werden.</string>
+    <string name="backup_import_confirm">Dies ersetzt alle vorhandenen benutzerdefinierten Befehle. Fortfahren?</string>
+    <string name="backup_import_cancel">Abbrechen</string>
+    <string name="settings_check_updates">Nach Updates suchen</string>
+    <string name="commands_collapse">Einklappen</string>
+    <string name="commands_expand">Ausklappen</string>
+
+    <!-- Delete confirmation -->
+    <string name="delete_confirm_command_title">Diesen Befehl löschen?</string>
+    <string name="delete_confirm_key_title">Diesen API-Schlüssel löschen?</string>
+    <string name="delete_confirm_message">Diese Aktion kann nicht rückgängig gemacht werden.</string>
+    <string name="delete_confirm_button">Löschen</string>
+    <string name="backup_export_error">Export fehlgeschlagen</string>
+    <string name="commands_search_hint">Befehle durchsuchen…</string>
+    <string name="commands_search_close">Suche schließen</string>
+    <string name="commands_search_empty">Keine Befehle gefunden</string>
+    <string name="keys_empty">Keine API-Schlüssel hinzugefügt</string>
+    <string name="dashboard_monthly_requests">Diesen Monat</string>
+    <string name="dashboard_favorite_command">Top-Befehl</string>
+    <string name="dashboard_no_data">—</string>
+    <string name="dashboard_last_7_days">Letzte 7 Tage</string>
+    <string name="settings_temperature_title">Temperatur</string>
+    <string name="settings_made_by">Mit Liebe gemacht von Musheer Alam</string>
+    <string name="settings_sponsor">Auf GitHub sponsern</string>
+</resources>

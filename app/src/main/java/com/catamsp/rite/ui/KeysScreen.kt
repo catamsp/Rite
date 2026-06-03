@@ -1,5 +1,8 @@
 package com.catamsp.rite.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,15 +13,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.RiteApp
+import com.catamsp.rite.model.ProviderType
 import com.catamsp.rite.ui.components.ScreenTitle
 import com.catamsp.rite.ui.theme.SurfaceTertiary
 import com.catamsp.rite.viewmodel.KeysViewModel
@@ -44,11 +50,13 @@ fun KeysScreen(
     var newKey by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
+    var keyToDelete by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer { }
             .padding(horizontal = 16.dp)
             .padding(top = 24.dp)
     ) {
@@ -78,10 +86,16 @@ fun KeysScreen(
 
                         val settingsState = settingsViewModel.state.value
                         val result = withContext(Dispatchers.IO) {
-                            if (settingsState.providerType == "custom" && settingsState.customEndpoint.isNotBlank()) {
-                                app.openAIClient.validateKey(trimmedKey, settingsState.customEndpoint, settingsState.customModel)
-                            } else {
-                                app.geminiClient.validateKey(trimmedKey)
+                            when (settingsState.providerType) {
+                                ProviderType.CUSTOM -> {
+                                    app.openAIClient.validateKey(trimmedKey, settingsState.customEndpoint, settingsState.customModel)
+                                }
+                                ProviderType.GROQ -> {
+                                    app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
+                                }
+                                else -> {
+                                    app.geminiClient.validateKey(trimmedKey)
+                                }
                             }
                         }
 
@@ -91,6 +105,8 @@ fun KeysScreen(
                                 if (addResult.isSuccess) {
                                     newKey = ""
                                     testResult = "Valid key added!"
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
                                 } else {
                                     testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
                                 }
@@ -126,11 +142,33 @@ fun KeysScreen(
                     maskedKey = key,
                     onDelete = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        viewModel.removeKey(key)
+                        keyToDelete = key
                     }
                 )
             }
         }
+    }
+
+    keyToDelete?.let { keyValue ->
+        AlertDialog(
+            onDismissRequest = { keyToDelete = null },
+            title = { Text("Delete Key") },
+            text = { Text("Are you sure you want to delete this API key?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.removeKey(keyValue)
+                    keyToDelete = null
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { keyToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -178,6 +216,7 @@ private fun KeyInputCard(
                 onValueChange = onNewKeyChange,
                 label = { Text("API Key") },
                 singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.onSurface,
@@ -241,7 +280,7 @@ private fun KeyItem(maskedKey: String, onDelete: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "••••••••" + maskedKey.takeLast(6),
+                text = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + maskedKey.takeLast(6),
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onSurface,

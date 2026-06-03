@@ -10,8 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.Crossfade
+import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -21,19 +25,16 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.catamsp.rite.ui.DashboardScreenPrototype
 import com.catamsp.rite.ui.CommandsScreen
 import com.catamsp.rite.ui.KeysScreen
@@ -43,7 +44,6 @@ import com.catamsp.rite.viewmodel.CommandsViewModel
 import com.catamsp.rite.viewmodel.DashboardViewModel
 import com.catamsp.rite.viewmodel.KeysViewModel
 import com.catamsp.rite.viewmodel.SettingsViewModel
-import androidx.compose.runtime.Immutable
 
 class MainActivity : ComponentActivity() {
 
@@ -92,69 +92,88 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Immutable
-sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
-    data object Dashboard : Screen("dashboard", "Dashboard", Icons.Default.Home)
-    data object Keys : Screen("keys", "Keys", Icons.Default.Lock)
-    data object Commands : Screen("commands", "Commands", Icons.AutoMirrored.Filled.List)
-    data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
+enum class Tab(@StringRes val titleRes: Int, val icon: ImageVector) {
+    Dashboard(R.string.app_name, Icons.Default.Home),
+    Keys(R.string.app_name, Icons.Default.Lock),
+    Commands(R.string.app_name, Icons.AutoMirrored.Filled.List),
+    Settings(R.string.app_name, Icons.Default.Settings)
 }
 
 @Composable
 fun RiteMainScreen() {
-    val navController = rememberNavController()
-    val items = remember { listOf(Screen.Dashboard, Screen.Keys, Screen.Commands, Screen.Settings) }
     val haptic = LocalHapticFeedback.current
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    var selectedTab by rememberSaveable { mutableStateOf(Tab.Dashboard) }
 
-    val navBarColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = MaterialTheme.colorScheme.primary,
-        selectedTextColor = MaterialTheme.colorScheme.primary,
-        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+    val dashboardViewModel: DashboardViewModel = viewModel()
+    val commandsViewModel: CommandsViewModel = viewModel()
+    val keysViewModel: KeysViewModel = viewModel()
+    val settingsViewModel: SettingsViewModel = viewModel()
 
-    val dashboardViewModel: DashboardViewModel = viewModel(LocalContext.current as ComponentActivity)
-    val commandsViewModel: CommandsViewModel = viewModel(LocalContext.current as ComponentActivity)
-    val keysViewModel: KeysViewModel = viewModel(LocalContext.current as ComponentActivity)
-    val settingsViewModel: SettingsViewModel = viewModel(LocalContext.current as ComponentActivity)
+    val screens = remember {
+        Tab.entries.associateWith { tab ->
+            movableContentOf {
+                when (tab) {
+                    Tab.Dashboard -> DashboardScreenPrototype(viewModel = dashboardViewModel)
+                    Tab.Keys -> KeysScreen(viewModel = keysViewModel, settingsViewModel = settingsViewModel)
+                    Tab.Commands -> CommandsScreen(viewModel = commandsViewModel)
+                    Tab.Settings -> SettingsScreen(viewModel = settingsViewModel)
+                }
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background
+                containerColor = MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp
             ) {
-                items.forEach { screen ->
+                Tab.entries.forEach { tab ->
                     NavigationBarItem(
-                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                        label = { Text(screen.title) },
-                        selected = currentRoute == screen.route,
+                        icon = {
+                            Icon(
+                                tab.icon,
+                                contentDescription = stringResource(tab.titleRes)
+                            )
+                        },
+                        label = null,
+                        selected = selectedTab == tab,
                         onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                            if (selectedTab != tab) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                selectedTab = tab
                             }
                         },
-                        colors = navBarColors
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Dashboard.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.Dashboard.route) { DashboardScreenPrototype(viewModel = dashboardViewModel) }
-            composable(Screen.Keys.route) { KeysScreen(viewModel = keysViewModel, settingsViewModel = settingsViewModel) }
-            composable(Screen.Commands.route) { CommandsScreen(viewModel = commandsViewModel) }
-            composable(Screen.Settings.route) { SettingsScreen(viewModel = settingsViewModel) }
+        AnimatedContent(
+            targetState = selectedTab,
+            modifier = Modifier.padding(innerPadding),
+            transitionSpec = {
+                val direction = if (targetState.ordinal > initialState.ordinal)
+                    AnimatedContentTransitionScope.SlideDirection.Left
+                else
+                    AnimatedContentTransitionScope.SlideDirection.Right
+                slideIntoContainer(
+                    direction,
+                    animationSpec = tween(250, easing = FastOutSlowInEasing)
+                ) togetherWith slideOutOfContainer(
+                    direction,
+                    animationSpec = tween(250, easing = FastOutSlowInEasing)
+                )
+            },
+            label = "tab_transition"
+        ) { tab ->
+            screens[tab]?.invoke()
         }
     }
 }

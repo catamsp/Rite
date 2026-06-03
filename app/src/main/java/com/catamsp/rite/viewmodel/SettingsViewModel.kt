@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.catamsp.rite.RiteApp
 import com.catamsp.rite.manager.CommandManager
+import com.catamsp.rite.model.ProviderType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -17,11 +18,13 @@ import kotlinx.coroutines.launch
 
 @Stable
 data class SettingsState(
-    val providerType: String = "gemini",
+    val providerType: String = ProviderType.GEMINI,
     val selectedModel: String = "gemini-2.5-flash-lite",
+    val groqModel: String = "llama-3.3-70b-versatile",
     val customEndpoint: String = "",
     val customModel: String = "",
-    val triggerPrefix: String = "?"
+    val triggerPrefix: String = "?",
+    val temperature: Float = 0.5f
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -29,11 +32,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val commandManager = (application as RiteApp).commandManager
 
     private val _state = MutableStateFlow(SettingsState(
-        providerType = prefs.getString("provider_type", "gemini") ?: "gemini",
+        providerType = ProviderType.sanitize(prefs.getString("provider_type", null)),
         selectedModel = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite",
+        groqModel = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile",
         customEndpoint = prefs.getString("custom_endpoint", "") ?: "",
         customModel = prefs.getString("custom_model", "") ?: "",
-        triggerPrefix = commandManager.getTriggerPrefix()
+        triggerPrefix = commandManager.getTriggerPrefix(),
+        temperature = prefs.getFloat("temperature", 0.5f)
     ))
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
@@ -43,14 +48,30 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun updateProviderType(newType: String) {
         _state.value = _state.value.copy(providerType = newType)
         viewModelScope.launch(Dispatchers.IO) {
-            prefs.edit().putString("provider_type", newType).apply()
+            prefs.edit()
+                .putString("provider_type", newType)
+                .remove("structured_output_disabled_at")
+                .apply()
         }
     }
 
     fun updateSelectedModel(newModel: String) {
         _state.value = _state.value.copy(selectedModel = newModel)
         viewModelScope.launch(Dispatchers.IO) {
-            prefs.edit().putString("model", newModel).apply()
+            prefs.edit()
+                .putString("model", newModel)
+                .remove("structured_output_disabled_at")
+                .apply()
+        }
+    }
+
+    fun updateGroqModel(newModel: String) {
+        _state.value = _state.value.copy(groqModel = newModel)
+        viewModelScope.launch(Dispatchers.IO) {
+            prefs.edit()
+                .putString("groq_model", newModel)
+                .remove("structured_output_disabled_at")
+                .apply()
         }
     }
 
@@ -59,7 +80,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         saveEndpointJob?.cancel()
         saveEndpointJob = viewModelScope.launch(Dispatchers.IO) {
             delay(500)
-            prefs.edit().putString("custom_endpoint", endpoint).apply()
+            prefs.edit()
+                .putString("custom_endpoint", endpoint)
+                .remove("structured_output_disabled_at")
+                .apply()
         }
     }
 
@@ -68,7 +92,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         saveModelJob?.cancel()
         saveModelJob = viewModelScope.launch(Dispatchers.IO) {
             delay(500)
-            prefs.edit().putString("custom_model", model).apply()
+            prefs.edit()
+                .putString("custom_model", model)
+                .remove("structured_output_disabled_at")
+                .apply()
+        }
+    }
+
+    fun updateTemperature(newTemp: Float) {
+        val rounded = Math.round(newTemp * 10) / 10f
+        _state.value = _state.value.copy(temperature = rounded)
+        viewModelScope.launch(Dispatchers.IO) {
+            prefs.edit().putFloat("temperature", rounded).apply()
         }
     }
 
