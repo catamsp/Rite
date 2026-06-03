@@ -86,11 +86,14 @@ fun KeysScreen(
 
                         val settingsState = settingsViewModel.state.value
                         val result = withContext(Dispatchers.IO) {
-                            when (settingsState.providerType) {
-                                ProviderType.CUSTOM -> {
+                            when {
+                                trimmedKey.startsWith("gsk_") -> {
+                                    app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
+                                }
+                                settingsState.providerType == ProviderType.CUSTOM && settingsState.customEndpoint.isNotBlank() -> {
                                     app.openAIClient.validateKey(trimmedKey, settingsState.customEndpoint, settingsState.customModel)
                                 }
-                                ProviderType.GROQ -> {
+                                settingsState.providerType == ProviderType.GROQ -> {
                                     app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
                                 }
                                 else -> {

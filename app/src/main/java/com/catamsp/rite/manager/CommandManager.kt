@@ -266,7 +266,7 @@ class CommandManager(context: Context) {
         // ── 1. Built-in & custom command triggers (exact suffix match with space check) ──
         for ((trigger, cmd) in getSortedTriggers()) {
             if (text.endsWith(trigger) && hasValidSpacing(text, trigger)) {
-                return if (trigger == cmd.trigger) cmd else Command(trigger, cmd.prompt, cmd.isBuiltIn)
+                return if (trigger == cmd.trigger) cmd else Command(trigger, cmd.prompt, cmd.isBuiltIn, cmd.type)
             }
         }
 

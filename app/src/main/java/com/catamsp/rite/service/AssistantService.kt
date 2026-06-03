@@ -46,6 +46,7 @@ class AssistantService : AccessibilityService() {
     private var cachedPrefix = CommandManager.DEFAULT_PREFIX
     private var currentJob: Job? = null
     private var debounceJob: Job? = null
+    private var watchdogJob: Job? = null
     @Volatile
     private var lastOriginalText: String? = null
     private var lastTriggerRefresh = 0L
@@ -117,6 +118,7 @@ class AssistantService : AccessibilityService() {
         if (command.trigger.endsWith("undo") && command.isBuiltIn) {
             if (source.isPassword) return
             isProcessing.set(true)
+            startWatchdog()
             currentJob?.cancel()
             handleUndo(source, cleanText)
             return
@@ -128,9 +130,11 @@ class AssistantService : AccessibilityService() {
         if (command.isBuiltIn && LOCAL_COMMANDS.contains(cmdName)) {
             if (source.isPassword) return
             isProcessing.set(true)
+            startWatchdog()
             currentJob?.cancel()
             currentJob = localCommandExecutor.execute(source, cleanText, cmdName, mode, command.trigger) {
                 withContext(NonCancellable + Dispatchers.Main) { isProcessing.set(false) }
+                cancelWatchdog()
             }
             return
         }
@@ -138,6 +142,7 @@ class AssistantService : AccessibilityService() {
         if (command.type == com.catamsp.rite.model.CommandType.TEXT_REPLACER) {
             if (source.isPassword) return
             isProcessing.set(true)
+            startWatchdog()
             currentJob?.cancel()
             currentJob = serviceScope.launch {
                 try {
@@ -154,6 +159,7 @@ class AssistantService : AccessibilityService() {
                     withContext(NonCancellable + Dispatchers.Main) {
                         isProcessing.set(false)
                     }
+                    cancelWatchdog()
                 }
             }
             return
@@ -164,6 +170,7 @@ class AssistantService : AccessibilityService() {
         if (isIntent && source.isPassword) return
 
         isProcessing.set(true)
+        startWatchdog()
         currentJob?.cancel()
         processCommand(source, cleanText, command)
     }
@@ -190,6 +197,7 @@ class AssistantService : AccessibilityService() {
                     withContext(NonCancellable + Dispatchers.Main) {
                         isProcessing.set(false)
                     }
+                    cancelWatchdog()
                 }
             }
             return
@@ -313,6 +321,7 @@ class AssistantService : AccessibilityService() {
                     spinnerJob?.cancel()
                     isProcessing.set(false)
                 }
+                cancelWatchdog()
             }
         }
     }
@@ -402,14 +411,34 @@ class AssistantService : AccessibilityService() {
         }
     }
 
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = serviceScope.launch {
+            delay(WATCHDOG_TIMEOUT_MS)
+            if (isProcessing.compareAndSet(true, false)) {
+                withContext(Dispatchers.Main) {
+                    currentJob?.cancel()
+                    toastManager.show("Operation timed out")
+                }
+            }
+        }
+    }
+
+    private fun cancelWatchdog() {
+        watchdogJob?.cancel()
+        watchdogJob = null
+    }
+
     override fun onInterrupt() {
         isProcessing.set(false)
+        watchdogJob?.cancel()
         debounceJob?.cancel()
         currentJob?.cancel()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        watchdogJob?.cancel()
         debounceJob?.cancel()
         toastManager.dismiss()
         serviceScope.cancel()
@@ -452,6 +481,7 @@ class AssistantService : AccessibilityService() {
         const val TRIGGER_REFRESH_INTERVAL_MS = 30_000L
         const val ENABLE_DEBUG_LOGGING = false
         const val AI_COMMAND_TIMEOUT_MS = 90_000L
+        const val WATCHDOG_TIMEOUT_MS = 120_000L
         val INTENT_PREFIXES = listOf("app:", "tel:", "sms:", "mailto:", "https://", "http://")
         val LOCAL_COMMANDS = setOf(
             "cp", "ct", "pt", "del",

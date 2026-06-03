@@ -41,15 +41,15 @@ class CommandsViewModel(application: Application) : AndroidViewModel(application
     val state: StateFlow<CommandsState> = _state.asStateFlow()
 
     init {
-        refreshCommands()
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshCommands()
+        }
         refreshPrefix()
     }
 
-    fun refreshCommands() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val commands = commandManager.getCommands().toImmutableList()
-            _state.value = _state.value.copy(commands = commands)
-        }
+    private suspend fun refreshCommands() {
+        val commands = commandManager.getCommands().toImmutableList()
+        _state.value = _state.value.copy(commands = commands)
     }
 
     private fun refreshPrefix() {

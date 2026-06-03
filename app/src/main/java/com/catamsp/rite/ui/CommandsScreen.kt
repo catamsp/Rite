@@ -299,6 +299,7 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
                 isEdit = true,
                 initialTrigger = initialCommand?.trigger ?: "",
                 initialPrompt = initialCommand?.prompt ?: "",
+                initialType = initialCommand?.type ?: com.catamsp.rite.model.CommandType.AI,
                 existingCommands = existingCommands,
                 onDismiss = onDismiss,
                 onSave = onSave
@@ -585,13 +586,14 @@ fun CommandDialog(
     isEdit: Boolean,
     initialTrigger: String,
     initialPrompt: String,
+    initialType: com.catamsp.rite.model.CommandType = com.catamsp.rite.model.CommandType.AI,
     existingCommands: List<Command>,
     onDismiss: () -> Unit,
     onSave: (String, String, com.catamsp.rite.model.CommandType) -> Unit
 ) {
     var trigger by remember { mutableStateOf(initialTrigger) }
     var prompt by remember { mutableStateOf(initialPrompt) }
-    var selectedType by remember { mutableStateOf(com.catamsp.rite.model.CommandType.AI) }
+    var selectedType by remember { mutableStateOf(initialType) }
     var error by remember { mutableStateOf<String?>(null) }
 
     Dialog(onDismissRequest = onDismiss) {
