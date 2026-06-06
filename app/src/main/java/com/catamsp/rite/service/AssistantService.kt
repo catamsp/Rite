@@ -2,6 +2,7 @@ package com.catamsp.rite.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -42,14 +43,17 @@ class AssistantService : AccessibilityService() {
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
     private val isProcessing = AtomicBoolean(false)
     private val handler = Handler(Looper.getMainLooper())
-    private var triggerLastChars = setOf<Char>()
-    private var cachedPrefix = CommandManager.DEFAULT_PREFIX
     private var currentJob: Job? = null
     private var debounceJob: Job? = null
     private var watchdogJob: Job? = null
     @Volatile
     private var lastOriginalText: String? = null
-    private var lastTriggerRefresh = 0L
+
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "custom_commands") {
+            commandManager.invalidateCache()
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -63,14 +67,8 @@ class AssistantService : AccessibilityService() {
             scope = serviceScope,
             performHaptic = ::performHapticFeedback
         )
-        updateTriggers()
-    }
-
-    private fun updateTriggers() {
-        cachedPrefix = commandManager.getTriggerPrefix()
-        val cmds = commandManager.getCommands()
-        triggerLastChars = cmds.mapNotNull { it.trigger.lastOrNull() }.toSet()
-        lastTriggerRefresh = System.currentTimeMillis()
+        applicationContext.getSharedPreferences("commands", Context.MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(prefsListener)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -93,22 +91,9 @@ class AssistantService : AccessibilityService() {
     private fun processTextChange(source: AccessibilityNodeInfo, text: String) {
         if (isProcessing.get()) return
 
-        if (System.currentTimeMillis() - lastTriggerRefresh > TRIGGER_REFRESH_INTERVAL_MS) {
-            updateTriggers()
-        }
-
         val lastChar = text[text.length - 1]
-        val hasIntentPrefix = INTENT_PREFIXES.any { text.contains("${cachedPrefix}${it}") }
-        if (!triggerLastChars.contains(lastChar)) {
-            val hasTranslate = text.contains("${cachedPrefix}translate:") ||
-                text.contains("!translate:") ||
-                text.contains("+translate:")
-            if (!lastChar.isLetterOrDigit() && !hasTranslate && !hasIntentPrefix) {
-                return
-            }
-            if (hasIntentPrefix && !lastChar.isLetterOrDigit()) {
-                // Allow intent-type text
-            }
+        if (!lastChar.isLetterOrDigit() && !lastChar.isWhitespace()) {
+            return
         }
 
         val command = commandManager.findCommand(text) ?: return
@@ -125,7 +110,7 @@ class AssistantService : AccessibilityService() {
         }
 
         val mode = getCommandMode(command.trigger)
-        val cmdName = extractCmdName(command.trigger, cachedPrefix)
+        val cmdName = extractCmdName(command.trigger, commandManager.getTriggerPrefix())
 
         if (command.isBuiltIn && LOCAL_COMMANDS.contains(cmdName)) {
             if (source.isPassword) return
@@ -441,6 +426,10 @@ class AssistantService : AccessibilityService() {
         watchdogJob?.cancel()
         debounceJob?.cancel()
         toastManager.dismiss()
+        try {
+            applicationContext.getSharedPreferences("commands", Context.MODE_PRIVATE)
+                .unregisterOnSharedPreferenceChangeListener(prefsListener)
+        } catch (_: Exception) {}
         serviceScope.cancel()
     }
 
@@ -478,7 +467,6 @@ class AssistantService : AccessibilityService() {
 
     private companion object {
         const val DEBOUNCE_MS = 150L
-        const val TRIGGER_REFRESH_INTERVAL_MS = 30_000L
         const val ENABLE_DEBUG_LOGGING = false
         const val AI_COMMAND_TIMEOUT_MS = 90_000L
         const val WATCHDOG_TIMEOUT_MS = 120_000L

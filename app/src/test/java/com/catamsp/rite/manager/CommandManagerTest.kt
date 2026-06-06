@@ -140,4 +140,107 @@ class CommandManagerTest {
         assertEquals(1, result.imported)
         assertEquals(0, result.skipped)
     }
+
+    // ── Custom command edge cases (triggerLastChars bug regression) ──
+
+    @Test
+    fun findCommand_customCommandEndingWithUncommonLetter_findsIt() {
+        // Letters NOT in built-in triggers' last chars: a, b, f, g, h, j, k, q, s, u, v, w, z
+        manager.addCustomCommand(Command("?web", "Open web browser", false))
+        val result = manager.findCommand("search ?web")
+        assertNotNull(result)
+        assertEquals("?web", result?.trigger)
+        assertEquals("Open web browser", result?.prompt)
+    }
+
+    @Test
+    fun findCommand_customCommandEndingWithB_findsIt() {
+        manager.addCustomCommand(Command("?grab", "Grab text", false))
+        val result = manager.findCommand("hello ?grab")
+        assertNotNull(result)
+        assertEquals("?grab", result?.trigger)
+    }
+
+    @Test
+    fun findCommand_customCommandEndingWithS_findsIt() {
+        manager.addCustomCommand(Command("?ask", "Ask AI", false))
+        val result = manager.findCommand("question ?ask")
+        assertNotNull(result)
+        assertEquals("?ask", result?.trigger)
+    }
+
+    @Test
+    fun findCommand_customCommandEndingWithW_findsIt() {
+        manager.addCustomCommand(Command("?wow", "Add wow effect", false))
+        val result = manager.findCommand("text ?wow")
+        assertNotNull(result)
+        assertEquals("?wow", result?.trigger)
+    }
+
+    @Test
+    fun findCommand_customCommandEndingWithZ_findsIt() {
+        manager.addCustomCommand(Command("?jazz", "Make it jazzy", false))
+        val result = manager.findCommand("text ?jazz")
+        assertNotNull(result)
+        assertEquals("?jazz", result?.trigger)
+    }
+
+    @Test
+    fun findCommand_customIntentCommand_findsIt() {
+        manager.addCustomCommand(Command("?wp", "app:com.whatsapp", false))
+        val result = manager.findCommand("?wp")
+        assertNotNull(result)
+        assertEquals("?wp", result?.trigger)
+        assertEquals("app:com.whatsapp", result?.prompt)
+    }
+
+    @Test
+    fun findCommand_customTelIntentCommand_findsIt() {
+        manager.addCustomCommand(Command("?call", "tel:+1234567890", false))
+        val result = manager.findCommand("hello ?call")
+        assertNotNull(result)
+        assertEquals("?call", result?.trigger)
+        assertEquals("tel:+1234567890", result?.prompt)
+    }
+
+    @Test
+    fun findCommand_customUrlIntentCommand_findsIt() {
+        manager.addCustomCommand(Command("?google", "https://google.com", false))
+        val result = manager.findCommand("?google")
+        assertNotNull(result)
+        assertEquals("?google", result?.trigger)
+        assertEquals("https://google.com", result?.prompt)
+    }
+
+    @Test
+    fun findCommand_customCommandWithTextBefore_findsIt() {
+        manager.addCustomCommand(Command("?summarize", "Summarize this text", false))
+        val result = manager.findCommand("Here is my long text ?summarize")
+        assertNotNull(result)
+        assertEquals("?summarize", result?.trigger)
+    }
+
+    @Test
+    fun invalidateCache_causesReloadFromPrefs() {
+        manager.addCustomCommand(Command("?test1", "Test prompt 1", false))
+        // Verify it's there
+        assertNotNull(manager.findCommand("?test1"))
+        // Invalidate cache
+        manager.invalidateCache()
+        // Should still be there (reloaded from prefs)
+        assertNotNull(manager.findCommand("?test1"))
+        val commands = manager.getCommands().filter { !it.isBuiltIn }
+        assertEquals(1, commands.size)
+        assertEquals("?test1", commands[0].trigger)
+    }
+
+    @Test
+    fun addCustomCommand_afterInvalidateCache_isFound() {
+        // Simulate what happens when service's cache is invalidated
+        manager.invalidateCache()
+        manager.addCustomCommand(Command("?newcmd", "New command", false))
+        val result = manager.findCommand("?newcmd")
+        assertNotNull(result)
+        assertEquals("New command", result?.prompt)
+    }
 }

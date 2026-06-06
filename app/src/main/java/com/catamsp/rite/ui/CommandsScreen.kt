@@ -129,18 +129,16 @@ fun CommandsScreen(viewModel: CommandsViewModel = viewModel()) {
     var searchQuery by remember { mutableStateOf("") }
     var expandedIds by remember { mutableStateOf(emptySet<String>()) }
 
-    val filteredCommands by remember {
-        derivedStateOf {
-            var result = if (selectedFilter == "All") allCommands
-            else allCommands.filter { cmd -> getCommandType(cmd) == selectedFilter }
-            if (searchQuery.isNotBlank()) {
-                result = result.filter {
-                    it.trigger.contains(searchQuery, ignoreCase = true) ||
-                    it.prompt.contains(searchQuery, ignoreCase = true)
-                }
+    val filteredCommands = remember(allCommands, selectedFilter, searchQuery) {
+        var result = if (selectedFilter == "All") allCommands
+        else allCommands.filter { cmd -> getCommandType(cmd) == selectedFilter }
+        if (searchQuery.isNotBlank()) {
+            result = result.filter {
+                it.trigger.contains(searchQuery, ignoreCase = true) ||
+                it.prompt.contains(searchQuery, ignoreCase = true)
             }
-            result
         }
+        result
     }
 
     importResult?.let { msg ->

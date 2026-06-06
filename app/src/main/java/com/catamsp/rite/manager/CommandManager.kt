@@ -118,7 +118,7 @@ class CommandManager(context: Context) {
         return result
     }
 
-    private fun invalidateCache() {
+    fun invalidateCache() {
         cachedCommands = null
         cachedSortedTriggers = null
         cachedBuiltInCommands = null
