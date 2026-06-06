@@ -13,8 +13,6 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import android.widget.Toast
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class OverlayToastManager(
     private val context: Context,
@@ -30,57 +28,59 @@ class OverlayToastManager(
         return (value * density + 0.5f).toInt()
     }
 
-    suspend fun show(msg: String) = withContext(Dispatchers.Main) {
-        dismiss()
-        val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    fun show(msg: String) {
+        handler.post {
+            dismiss()
+            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val textView = TextView(context.applicationContext).apply {
-            text = msg
-            setTextColor(Color.WHITE)
-            textSize = 14f
-            setPadding(dp(24), dp(12), dp(24), dp(12))
-            maxWidth = (context.resources.displayMetrics.widthPixels * 0.85).toInt()
-            background = GradientDrawable().apply {
-                setColor(TOAST_BACKGROUND_COLOR)
-                cornerRadius = dp(24).toFloat()
-            }
-            gravity = Gravity.CENTER
-            alpha = 0f
-            translationY = dp(TOAST_SLIDE_DISTANCE_DP).toFloat()
-        }
-
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = dp(TOAST_BOTTOM_MARGIN_DP)
-            windowAnimations = 0
-        }
-
-        try {
-            wm.addView(textView, params)
-            currentOverlayToast = textView
-
-            AnimatorSet().apply {
-                playTogether(
-                    ObjectAnimator.ofFloat(textView, View.ALPHA, 0f, 1f),
-                    ObjectAnimator.ofFloat(textView, View.TRANSLATION_Y, dp(TOAST_SLIDE_DISTANCE_DP).toFloat(), 0f)
-                )
-                duration = TOAST_ANIM_DURATION_MS
-                interpolator = DecelerateInterpolator()
-                start()
-                enterAnimator = this
+            val textView = TextView(context.applicationContext).apply {
+                text = msg
+                setTextColor(Color.WHITE)
+                textSize = 14f
+                setPadding(dp(24), dp(12), dp(24), dp(12))
+                maxWidth = (context.resources.displayMetrics.widthPixels * 0.85).toInt()
+                background = GradientDrawable().apply {
+                    setColor(TOAST_BACKGROUND_COLOR)
+                    cornerRadius = dp(24).toFloat()
+                }
+                gravity = Gravity.CENTER
+                alpha = 0f
+                translationY = dp(TOAST_SLIDE_DISTANCE_DP).toFloat()
             }
 
-            val runnable = Runnable { dismissAnimated() }
-            dismissRunnable = runnable
-            handler.postDelayed(runnable, TOAST_DURATION_MS)
-        } catch (_: Exception) {
-            Toast.makeText(context.applicationContext, msg, Toast.LENGTH_SHORT).show()
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+                y = dp(TOAST_BOTTOM_MARGIN_DP)
+                windowAnimations = 0
+            }
+
+            try {
+                wm.addView(textView, params)
+                currentOverlayToast = textView
+
+                AnimatorSet().apply {
+                    playTogether(
+                        ObjectAnimator.ofFloat(textView, View.ALPHA, 0f, 1f),
+                        ObjectAnimator.ofFloat(textView, View.TRANSLATION_Y, dp(TOAST_SLIDE_DISTANCE_DP).toFloat(), 0f)
+                    )
+                    duration = TOAST_ANIM_DURATION_MS
+                    interpolator = DecelerateInterpolator()
+                    start()
+                    enterAnimator = this
+                }
+
+                val runnable = Runnable { dismissAnimated() }
+                dismissRunnable = runnable
+                handler.postDelayed(runnable, TOAST_DURATION_MS)
+            } catch (_: Exception) {
+                Toast.makeText(context.applicationContext, msg, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

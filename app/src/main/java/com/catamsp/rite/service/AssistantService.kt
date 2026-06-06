@@ -724,7 +724,7 @@ class AssistantService : AccessibilityService() {
 
     private companion object {
         const val DEBOUNCE_MS = 150L
-        const val ENABLE_DEBUG_LOGGING = true
+        const val ENABLE_DEBUG_LOGGING = false
         const val AI_COMMAND_TIMEOUT_MS = 90_000L
         const val WATCHDOG_TIMEOUT_MS = 120_000L
         const val KEYBOARD_DISMISS_DELAY_MS = 400L
