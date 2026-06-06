@@ -3,7 +3,7 @@
 import androidx.compose.runtime.Immutable
 
 enum class CommandType {
-    AI, TEXT_REPLACER
+    AI, TEXT_REPLACER, CONTEXT_AWARE
 }
 
 @Immutable

@@ -81,6 +81,8 @@ class AssistantService : AccessibilityService() {
         val text = source.text?.toString()
         if (text.isNullOrEmpty()) return
 
+        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "onEvent: pkg=${event.packageName} text='${text.take(40)}'")
+
         debounceJob?.cancel()
         debounceJob = serviceScope.launch {
             delay(DEBOUNCE_MS)
@@ -89,14 +91,25 @@ class AssistantService : AccessibilityService() {
     }
 
     private fun processTextChange(source: AccessibilityNodeInfo, text: String) {
-        if (isProcessing.get()) return
+        if (isProcessing.get()) {
+            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: blocked by isProcessing")
+            return
+        }
 
         val lastChar = text[text.length - 1]
         if (!lastChar.isLetterOrDigit() && !lastChar.isWhitespace()) {
             return
         }
 
-        val command = commandManager.findCommand(text) ?: return
+        val command = commandManager.findCommand(text)
+        if (command == null) {
+            if (ENABLE_DEBUG_LOGGING && text.startsWith(commandManager.getTriggerPrefix())) {
+                Log.d("Rite", "processTextChange: command NOT found for '${text.takeLast(20)}'")
+            }
+            return
+        }
+
+        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: found command '${command.trigger}' type=${command.type} isBuiltIn=${command.isBuiltIn}")
 
         val cleanText = text.substring(0, text.length - command.trigger.length).trim()
 
@@ -113,6 +126,7 @@ class AssistantService : AccessibilityService() {
         val cmdName = extractCmdName(command.trigger, commandManager.getTriggerPrefix())
 
         if (command.isBuiltIn && LOCAL_COMMANDS.contains(cmdName)) {
+            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: routing to LOCAL command '$cmdName'")
             if (source.isPassword) return
             isProcessing.set(true)
             startWatchdog()
@@ -125,6 +139,7 @@ class AssistantService : AccessibilityService() {
         }
 
         if (command.type == com.catamsp.rite.model.CommandType.TEXT_REPLACER) {
+            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: routing to TEXT_REPLACER")
             if (source.isPassword) return
             isProcessing.set(true)
             startWatchdog()
@@ -150,10 +165,21 @@ class AssistantService : AccessibilityService() {
             return
         }
 
+        if (command.type == com.catamsp.rite.model.CommandType.CONTEXT_AWARE) {
+            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: routing to CONTEXT_AWARE")
+            if (source.isPassword) return
+            isProcessing.set(true)
+            startWatchdog()
+            currentJob?.cancel()
+            currentJob = processContextAwareCommand(source, command)
+            return
+        }
+
         val isIntent = INTENT_PREFIXES.any { command.prompt.trimStart().startsWith(it) }
         if (!isIntent && (cleanText.isEmpty() || source.isPassword)) return
         if (isIntent && source.isPassword) return
 
+        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: routing to AI command '${command.trigger}' text='${cleanText.take(30)}'")
         isProcessing.set(true)
         startWatchdog()
         currentJob?.cancel()
@@ -189,6 +215,8 @@ class AssistantService : AccessibilityService() {
         }
 
         val mode = getCommandMode(command.trigger)
+        val cmdName = extractCmdName(command.trigger, commandManager.getTriggerPrefix())
+
         currentJob = serviceScope.launch {
             val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
             val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
@@ -221,6 +249,9 @@ class AssistantService : AccessibilityService() {
                 val disabledAt = prefs.getLong("structured_output_disabled_at", 0L)
                 System.currentTimeMillis() - disabledAt > 86_400_000L
             }
+
+            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: provider=$providerType model=$model keys=${keyManager.getKeys().size} structuredOutput=$useStructuredOutput")
+
             var spinnerJob: Job? = null
             try {
                 withTimeout(AI_COMMAND_TIMEOUT_MS) {
@@ -234,6 +265,8 @@ class AssistantService : AccessibilityService() {
                         if (spinnerJob == null) {
                             spinnerJob = textHelper.startInlineSpinner(source, originalText)
                         }
+
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: attempt ${attempt + 1}/$maxAttempts")
 
                         val result = when (providerType) {
                             ProviderType.GROQ -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint, useStructuredOutput, useStructuredOutput)
@@ -252,11 +285,13 @@ class AssistantService : AccessibilityService() {
                                 prefs.edit().putLong("structured_output_disabled_at", System.currentTimeMillis()).apply()
                             }
                             succeeded = true
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: SUCCESS result='${generateResult.text.take(50)}'")
                             break
                         }
 
                         val msg = result.exceptionOrNull()?.message ?: ""
                         lastErrorMsg = msg
+                        if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "AI command: FAILED attempt ${attempt + 1} error='$msg'")
                         val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
                         val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
 
@@ -275,16 +310,26 @@ class AssistantService : AccessibilityService() {
                         textHelper.replaceText(source, originalText)
                         performHapticFeedback(HapticFeedbackConstants.REJECT)
                         if (lastErrorMsg != null) {
-                            toastManager.show(mapErrorMessage(lastErrorMsg))
+                            val mapped = mapErrorMessage(lastErrorMsg)
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: '$mapped'")
+                            toastManager.show(mapped)
                         } else {
                             val waitMs = keyManager.getShortestWaitTimeMs()
                             when {
                                 waitMs != null -> {
                                     val waitSec = ((waitMs + 999) / 1000).coerceAtLeast(1)
-                                    toastManager.show("API key rate limited. Try again in ${waitSec}s")
+                                    val msg = "Rate limited. Try again in ${waitSec}s or switch model in Settings"
+                                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: '$msg'")
+                                    toastManager.show(msg)
                                 }
-                                keyManager.getKeys().isEmpty() -> toastManager.show("No API keys configured")
-                                else -> toastManager.show("All API keys are invalid. Please check your keys")
+                                keyManager.getKeys().isEmpty() -> {
+                                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: No API keys")
+                                    toastManager.show("No API keys. Add one in Settings → API Keys")
+                                }
+                                else -> {
+                                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: Invalid key")
+                                    toastManager.show("API key invalid. Check Settings → API Keys")
+                                }
                             }
                         }
                     }
@@ -297,6 +342,7 @@ class AssistantService : AccessibilityService() {
                 throw e
             } catch (e: Exception) {
                 spinnerJob?.cancel()
+                if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "AI command: EXCEPTION", e)
                 try { textHelper.replaceText(source, originalText) } catch (_: Exception) {
                     toastManager.show("Could not restore original text")
                 }
@@ -308,6 +354,213 @@ class AssistantService : AccessibilityService() {
                 }
                 cancelWatchdog()
             }
+        }
+    }
+
+    private fun processContextAwareCommand(
+        source: AccessibilityNodeInfo,
+        command: Command
+    ): Job = serviceScope.launch {
+        var spinnerJob: Job? = null
+        var inputField: AccessibilityNodeInfo? = null
+        try {
+            withTimeout(AI_COMMAND_TIMEOUT_MS) {
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: starting, closing keyboard")
+
+                // Step 1: Close keyboard
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                delay(KEYBOARD_DISMISS_DELAY_MS)
+
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: keyboard closed, reading prefs")
+
+                // Step 2: Check screen context toggle
+                val screenContextEnabled = applicationContext
+                    .getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    .getBoolean("screen_context_enabled", false)
+
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: screenContextEnabled=$screenContextEnabled")
+
+                if (!screenContextEnabled) {
+                    withContext(Dispatchers.Main) {
+                        textHelper.replaceText(source, "")
+                        toastManager.show("Enable Screen Context toggle in Rite Settings")
+                    }
+                    return@withTimeout
+                }
+
+                // Step 3: Re-acquire input field and screen context after keyboard close
+                val screenContext: String = try {
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: getting root window")
+                    val root = getRootInActiveWindow()
+                    if (root == null) {
+                        if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: root is null")
+                        withContext(Dispatchers.Main) {
+                            textHelper.replaceText(source, "")
+                            toastManager.show("Could not read screen content")
+                        }
+                        return@withTimeout
+                    }
+
+                    // Re-acquire the input field from the live window (source is stale after keyboard close)
+                    inputField = root.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+                    if (ENABLE_DEBUG_LOGGING) {
+                        val inputText = inputField?.text?.toString() ?: "null"
+                        Log.d("Rite", "CtxAware: inputField found=${inputField != null} text='${inputText.take(30)}'")
+                    }
+
+                    val ctxSource = inputField ?: source
+                    val mode = if (command.trigger.endsWith("freply"))
+                        ScreenContextCollector.ContextMode.FULL
+                    else
+                        ScreenContextCollector.ContextMode.QUICK
+                    val ctx = ScreenContextCollector.collect(ctxSource, root, mode, packageName)
+                    root.recycle()
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: collected ${ctx.length} chars of context")
+
+                    if (ctx.isBlank()) {
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: blank context, aborting")
+                        withContext(Dispatchers.Main) {
+                            textHelper.replaceText(ctxSource, "")
+                            toastManager.show("No readable content on screen")
+                        }
+                        return@withTimeout
+                    }
+                    ctx
+                } catch (e: Exception) {
+                    if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: screen context FAILED", e)
+                    withContext(Dispatchers.Main) {
+                        textHelper.replaceText(source, "")
+                        toastManager.show("Failed to read screen: ${e.message}")
+                    }
+                    return@withTimeout
+                }
+
+                // Step 4: Read provider settings
+                val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
+                val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
+                val model: String
+                val endpoint: String
+
+                when (providerType) {
+                    ProviderType.CUSTOM -> {
+                        model = prefs.getString("custom_model", "") ?: ""
+                        endpoint = prefs.getString("custom_endpoint", "") ?: ""
+                        if (model.isBlank() || endpoint.isBlank()) {
+                            withContext(Dispatchers.Main) {
+                                textHelper.replaceText(source, "")
+                                toastManager.show("Custom provider not configured in Settings")
+                            }
+                            return@withTimeout
+                        }
+                    }
+                    ProviderType.GROQ -> {
+                        model = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"
+                        endpoint = "https://api.groq.com/openai/v1"
+                    }
+                    else -> {
+                        model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
+                        endpoint = ""
+                    }
+                }
+
+                val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation. Return ONLY the reply text with no explanations or commentary."
+
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI provider=$providerType model=$model keys=${keyManager.getKeys().size}")
+
+                // Step 5: Call AI with prompt + screen context
+                val ctxSource = inputField ?: source
+                val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
+                var lastErrorMsg: String? = null
+                var succeeded = false
+
+                for (attempt in 0 until maxAttempts) {
+                    val key = keyManager.getNextKey() ?: break
+
+                    if (spinnerJob == null) {
+                        spinnerJob = textHelper.startInlineSpinner(ctxSource, "")
+                    }
+
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: attempt ${attempt + 1}/$maxAttempts")
+
+                    val result = when (providerType) {
+                        ProviderType.GROQ -> openAIClient.generate(command.prompt, "", key, model, temperature, endpoint, false, false, screenContext, contextAwareSystemPrompt)
+                        ProviderType.CUSTOM -> openAIClient.generate(command.prompt, "", key, model, temperature, endpoint, false, false, screenContext, contextAwareSystemPrompt)
+                        else -> client.generate(command.prompt, "", key, model, temperature, false, screenContext, contextAwareSystemPrompt)
+                    }
+
+                    if (result.isSuccess) {
+                        val generateResult = result.getOrThrow()
+                        spinnerJob!!.cancel()
+                        spinnerJob = null
+                        textHelper.replaceText(ctxSource, generateResult.text)
+                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        succeeded = true
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: SUCCESS '${generateResult.text.take(50)}'")
+                        break
+                    }
+
+                    val msg = result.exceptionOrNull()?.message ?: ""
+                    lastErrorMsg = msg
+                    if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} error='$msg'")
+                    val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
+                    val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
+
+                    when {
+                        isRateLimit -> {
+                            val seconds = Regex("retry after (\\d+)s").find(msg)?.groupValues?.get(1)?.toLongOrNull() ?: 60
+                            keyManager.reportRateLimit(key, seconds)
+                        }
+                        isInvalidKey -> keyManager.markInvalid(key)
+                        else -> break
+                    }
+                }
+
+                if (!succeeded) {
+                    spinnerJob?.cancel(); spinnerJob = null
+                    val ctxSource = inputField ?: source
+                    withContext(Dispatchers.Main) {
+                        textHelper.replaceText(ctxSource, "")
+                        performHapticFeedback(HapticFeedbackConstants.REJECT)
+                    }
+                    if (lastErrorMsg != null) {
+                        toastManager.show(mapErrorMessage(lastErrorMsg))
+                    } else {
+                        val waitMs = keyManager.getShortestWaitTimeMs()
+                        when {
+                            waitMs != null -> {
+                                val waitSec = ((waitMs + 999) / 1000).coerceAtLeast(1)
+                                toastManager.show("API rate limited. Try again in ${waitSec}s or switch provider in Settings")
+                            }
+                            keyManager.getKeys().isEmpty() -> toastManager.show("No API keys configured. Add one in Settings")
+                            else -> toastManager.show("API key invalid. Check Settings → API Keys")
+                        }
+                    }
+                }
+            }
+        } catch (e: TimeoutCancellationException) {
+            spinnerJob?.cancel()
+            val ctxSource = inputField ?: source
+            withContext(Dispatchers.Main) {
+                textHelper.replaceText(ctxSource, "")
+                toastManager.show("Request timed out. Try a shorter message or different model")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            spinnerJob?.cancel()
+            if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: EXCEPTION", e)
+            val ctxSource = inputField ?: source
+            withContext(Dispatchers.Main) {
+                textHelper.replaceText(ctxSource, "")
+                toastManager.show("Failed: ${e.message}")
+            }
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) {
+                spinnerJob?.cancel()
+                isProcessing.set(false)
+            }
+            cancelWatchdog()
         }
     }
 
@@ -437,39 +690,40 @@ class AssistantService : AccessibilityService() {
         val lower = raw.lowercase()
         return when {
             lower.contains("permission_denied") || lower.contains("permission denied") ->
-                "Your API key doesn't have access to this model."
+                "API key doesn't have access to this model. Try a different model in Settings"
             lower.contains("invalid api key") || lower.contains("api key not valid") || lower.contains("api_key_invalid") ->
-                "Invalid API key. Please check your key in Settings."
+                "Invalid API key. Check Settings → API Keys"
             lower.contains("rate limit") || lower.contains("resource_exhausted") || lower.contains("quota") ->
-                "Rate limited. Try again shortly."
+                "Rate limited. Wait a minute or switch model/provider in Settings"
             lower.contains("model not found") || lower.contains("model_not_found") || lower.contains("not found for api version") ->
-                "Model not found. Check your model selection in Settings."
+                "Model not found. Check Settings → Model"
             lower.contains("safety") || lower.contains("content_filter") || lower.contains("recitation") ||
                 lower.contains("blocked by safety") || lower.contains("finish_reason: safety") ||
                 lower.contains("failed_generation") ->
-                "Response blocked by safety filters. Try rephrasing."
+                "Response blocked by safety filters. Try rephrasing your text"
             lower.contains("empty response") || lower.contains("no content found") || lower.contains("no choices found") ->
-                "Model returned an empty response. Try again."
+                "Model returned empty response. Try a different model in Settings"
             lower.contains("timeout") || lower.contains("timed out") ->
-                "Request timed out. Check your connection."
+                "Request timed out. Check connection or try a shorter text"
             lower.contains("unable to resolve host") || lower.contains("no address associated") ||
                 lower.contains("network is unreachable") || lower.contains("no route to host") ||
                 lower.contains("software caused connection abort") || lower.contains("connection reset") ||
                 lower.contains("broken pipe") ->
-                "No internet connection."
+                "No internet connection. Check your network"
             lower.contains("connection refused") || lower.contains("connect failed") ->
-                "Could not reach the API. Check your endpoint URL."
+                "Could not reach API. Check your endpoint URL in Settings"
             lower.contains("bad request") ->
-                "Request failed. Check your settings."
+                "Bad request. Check your Settings (model, provider, API key)"
             else -> raw
         }
     }
 
     private companion object {
         const val DEBOUNCE_MS = 150L
-        const val ENABLE_DEBUG_LOGGING = false
+        const val ENABLE_DEBUG_LOGGING = true
         const val AI_COMMAND_TIMEOUT_MS = 90_000L
         const val WATCHDOG_TIMEOUT_MS = 120_000L
+        const val KEYBOARD_DISMISS_DELAY_MS = 400L
         val INTENT_PREFIXES = listOf("app:", "tel:", "sms:", "mailto:", "https://", "http://")
         val LOCAL_COMMANDS = setOf(
             "cp", "ct", "pt", "del",

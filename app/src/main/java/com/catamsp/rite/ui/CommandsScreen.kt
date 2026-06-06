@@ -88,6 +88,7 @@ private fun getCommandType(cmd: Command): String {
     }
     return when (cmd.type) {
         com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Replacer"
+        com.catamsp.rite.model.CommandType.CONTEXT_AWARE -> "Context-Aware"
         com.catamsp.rite.model.CommandType.AI -> {
             val p = cmd.prompt.trimStart()
             if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
@@ -648,6 +649,7 @@ fun CommandDialog(
                             Text(when (type) {
                                 com.catamsp.rite.model.CommandType.AI -> "AI"
                                 com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Text Replacer"
+                                com.catamsp.rite.model.CommandType.CONTEXT_AWARE -> "Context-Aware"
                             })
                         }
                     }

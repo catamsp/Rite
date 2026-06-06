@@ -24,7 +24,8 @@ data class SettingsState(
     val customEndpoint: String = "",
     val customModel: String = "",
     val triggerPrefix: String = "?",
-    val temperature: Float = 0.5f
+    val temperature: Float = 0.5f,
+    val screenContextEnabled: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -38,7 +39,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         customEndpoint = prefs.getString("custom_endpoint", "") ?: "",
         customModel = prefs.getString("custom_model", "") ?: "",
         triggerPrefix = commandManager.getTriggerPrefix(),
-        temperature = prefs.getFloat("temperature", 0.5f)
+        temperature = prefs.getFloat("temperature", 0.5f),
+        screenContextEnabled = prefs.getBoolean("screen_context_enabled", false)
     ))
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
@@ -110,6 +112,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun refreshTriggerPrefix() {
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = _state.value.copy(triggerPrefix = commandManager.getTriggerPrefix())
+        }
+    }
+
+    fun toggleScreenContext() {
+        val newValue = !_state.value.screenContextEnabled
+        _state.value = _state.value.copy(screenContextEnabled = newValue)
+        viewModelScope.launch(Dispatchers.IO) {
+            prefs.edit().putBoolean("screen_context_enabled", newValue).apply()
         }
     }
 }

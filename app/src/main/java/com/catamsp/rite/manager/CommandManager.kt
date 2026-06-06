@@ -64,6 +64,12 @@ class CommandManager(context: Context) {
         "reverse" to "Reverse words order."
     )
 
+    // Context-aware commands (screen context)
+    private val contextAwareDefinitions = listOf(
+        "freply" to "Generate a natural reply based on the visible screen conversation. Return ONLY the reply with no explanations or commentary.",
+        "qreply" to "Generate a natural reply based on recent screen messages. Return ONLY the reply with no explanations or commentary."
+    )
+
     fun getTriggerPrefix(): String = cachedPrefix
 
     fun setTriggerPrefix(newPrefix: String): Boolean {
@@ -97,7 +103,13 @@ class CommandManager(context: Context) {
         if (prefix == cachedBuiltInPrefix && cachedBuiltInCommands != null) {
             return cachedBuiltInCommands!!
         }
-        val result = builtInDefinitions.map { (name, prompt) -> Command("$prefix$name", prompt, true) }
+        val normal = builtInDefinitions.map { (name, prompt) ->
+            Command("$prefix$name", prompt, true, CommandType.AI)
+        }
+        val contextAware = contextAwareDefinitions.map { (name, prompt) ->
+            Command("$prefix$name", prompt, true, CommandType.CONTEXT_AWARE)
+        }
+        val result = normal + contextAware
         cachedBuiltInCommands = result
         cachedBuiltInPrefix = prefix
         return result

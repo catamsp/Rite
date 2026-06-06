@@ -33,6 +33,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val groqModel = settingsState.groqModel
     val triggerPrefix = settingsState.triggerPrefix
     val temperature = settingsState.temperature
+    val screenContextEnabled = settingsState.screenContextEnabled
 
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
@@ -133,11 +134,23 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 
         item(key = "spacer4") { Spacer(modifier = Modifier.height(8.dp)) }
 
+        item(key = "screenContext") {
+            ScreenContextSection(
+                enabled = screenContextEnabled,
+                onToggle = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.toggleScreenContext()
+                }
+            )
+        }
+
+        item(key = "spacer5") { Spacer(modifier = Modifier.height(8.dp)) }
+
         item(key = "triggers") {
             TriggerPrefixSection(triggerPrefix = triggerPrefix)
         }
 
-        item(key = "spacer5") { Spacer(modifier = Modifier.height(8.dp)) }
+        item(key = "spacer5b") { Spacer(modifier = Modifier.height(8.dp)) }
 
         item(key = "modes") {
             ModesSection()
@@ -172,6 +185,17 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                     "${triggerPrefix}explain" to "Complex → Simple terms",
                     "${triggerPrefix}fancy" to "\"hello\" → \"𝒽𝑒𝓁𝓁𝑜\"",
                     "${triggerPrefix}translate:es" to "\"Hello\" → \"Hola\"",
+                )
+            )
+        }
+        item(key = "ref_ctx_header") {
+            CommandReferenceHeader(title = "Context-Aware Commands")
+        }
+        item(key = "ref_ctx_1") {
+            CommandReferenceChunk(
+                commands = listOf(
+                    "${triggerPrefix}freply" to "Full screen context reply",
+                    "${triggerPrefix}qreply" to "Quick recent context reply",
                 )
             )
         }
@@ -411,6 +435,36 @@ private fun TemperatureSection(temperature: Float, onTemperatureChange: (Float) 
                 inactiveTrackColor = MaterialTheme.colorScheme.outline
             )
         )
+    }
+}
+
+@Composable
+private fun ScreenContextSection(enabled: Boolean, onToggle: () -> Unit) {
+    SettingsCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Screen Context",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Allow ?freply and ?qreply to read screen text",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = { onToggle() }
+            )
+        }
     }
 }
 
