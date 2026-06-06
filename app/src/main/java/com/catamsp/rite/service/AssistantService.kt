@@ -171,7 +171,7 @@ class AssistantService : AccessibilityService() {
             isProcessing.set(true)
             startWatchdog()
             currentJob?.cancel()
-            currentJob = processContextAwareCommand(source, command)
+            currentJob = processContextAwareCommand(source, command, cleanText)
             return
         }
 
@@ -307,7 +307,7 @@ class AssistantService : AccessibilityService() {
 
                     if (!succeeded) {
                         spinnerJob?.cancel(); spinnerJob = null
-                        textHelper.replaceText(source, originalText)
+                        try { textHelper.replaceText(source, originalText) } catch (_: Exception) {}
                         performHapticFeedback(HapticFeedbackConstants.REJECT)
                         if (lastErrorMsg != null) {
                             val mapped = mapErrorMessage(lastErrorMsg)
@@ -359,7 +359,8 @@ class AssistantService : AccessibilityService() {
 
     private fun processContextAwareCommand(
         source: AccessibilityNodeInfo,
-        command: Command
+        command: Command,
+        userInstruction: String
     ): Job = serviceScope.launch {
         var spinnerJob: Job? = null
         var inputField: AccessibilityNodeInfo? = null
@@ -464,7 +465,10 @@ class AssistantService : AccessibilityService() {
                     }
                 }
 
-                val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation. Return ONLY the reply text with no explanations or commentary."
+                val instructionPart = if (userInstruction.isNotBlank()) {
+                    " The user wants the reply tone/style to be: $userInstruction."
+                } else ""
+                val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation.$instructionPart Return ONLY the reply text with no explanations or commentary."
 
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI provider=$providerType model=$model keys=${keyManager.getKeys().size}")
 
@@ -520,7 +524,7 @@ class AssistantService : AccessibilityService() {
                     spinnerJob?.cancel(); spinnerJob = null
                     val ctxSource = inputField ?: source
                     withContext(Dispatchers.Main) {
-                        textHelper.replaceText(ctxSource, "")
+                        try { textHelper.replaceText(ctxSource, "") } catch (_: Exception) {}
                         performHapticFeedback(HapticFeedbackConstants.REJECT)
                     }
                     if (lastErrorMsg != null) {
