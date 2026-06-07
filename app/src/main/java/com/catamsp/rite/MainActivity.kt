@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -123,9 +124,43 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private val KeyIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "Key",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(
+            fill = androidx.compose.ui.graphics.SolidColor(Color.Black)
+        ) {
+            moveTo(12.65f, 10f)
+            curveTo(11.83f, 7.67f, 9.61f, 6f, 7f, 6f)
+            curveTo(3.69f, 6f, 1f, 8.69f, 1f, 12f)
+            reflectiveCurveTo(3.69f, 18f, 7f, 18f)
+            curveTo(9.61f, 18f, 11.83f, 16.33f, 12.65f, 14f)
+            horizontalLineTo(17f)
+            verticalLineTo(18f)
+            horizontalLineTo(21f)
+            verticalLineTo(14f)
+            horizontalLineTo(23f)
+            verticalLineTo(10f)
+            horizontalLineTo(12.65f)
+            close()
+            moveTo(7f, 14f)
+            curveTo(5.9f, 14f, 5f, 13.1f, 5f, 12f)
+            reflectiveCurveTo(5.9f, 10f, 7f, 10f)
+            reflectiveCurveTo(9f, 10.9f, 9f, 12f)
+            reflectiveCurveTo(8.1f, 14f, 7f, 14f)
+            close()
+        }
+    }.build()
+}
+
 enum class Tab(@StringRes val titleRes: Int, val icon: ImageVector) {
     Dashboard(R.string.tab_home, Icons.Default.Home),
-    Keys(R.string.tab_keys, Icons.Default.Lock),
+    Keys(R.string.tab_keys, KeyIcon),
     Commands(R.string.tab_commands, Icons.AutoMirrored.Filled.List),
     Settings(R.string.tab_settings, Icons.Default.Settings),
     About(R.string.tab_about, Icons.Default.Person)

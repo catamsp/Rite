@@ -290,23 +290,7 @@ private fun CustomModelSection(model: String, onModelChange: (String) -> Unit) {
 @Composable
 private fun CreativitySection(temperature: Float, onCreativityChange: (Float) -> Unit) {
     SettingsCard {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Creativity",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = String.format("%.1f", temperature),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
+        SettingsLabel("Creativity")
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Lower = focused, predictable · Higher = creative, varied",
