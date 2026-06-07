@@ -28,7 +28,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
@@ -188,15 +197,43 @@ private fun FloatingTabBar(
     selectedTab: Tab,
     onTabSelected: (Tab) -> Unit
 ) {
+    val density = LocalDensity.current
+    val tabPositions = remember { mutableStateMapOf<Tab, Float>() }
+    val tabWidths = remember { mutableStateMapOf<Tab, Float>() }
+
+    val targetX = tabPositions[selectedTab] ?: 0f
+    val targetWidth = tabWidths[selectedTab] ?: 0f
+
+    val animatedX by animateFloatAsState(
+        targetValue = targetX,
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "pill_x"
+    )
+    val animatedWidth by animateFloatAsState(
+        targetValue = targetWidth,
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "pill_width"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFF141414))
-            .border(1.dp, Color(0xFF2C2C2E), RoundedCornerShape(24.dp))
+            .background(Color.Black)
+            .border(1.dp, Color.White, RoundedCornerShape(24.dp))
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
+        if (tabWidths.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(animatedX.toInt(), 0) }
+                    .width(with(density) { animatedWidth.toDp() })
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -206,13 +243,13 @@ private fun FloatingTabBar(
                 val isSelected = selectedTab == tab
                 Box(
                     modifier = Modifier
+                        .onGloballyPositioned { coords ->
+                            tabPositions[tab] = coords.positionInParent().x
+                            tabWidths[tab] = coords.size.width.toFloat()
+                        }
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (isSelected) Color.White else Color.Transparent)
                         .clickable { onTabSelected(tab) }
-                        .padding(
-                            horizontal = if (isSelected) 16.dp else 12.dp,
-                            vertical = 10.dp
-                        ),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(

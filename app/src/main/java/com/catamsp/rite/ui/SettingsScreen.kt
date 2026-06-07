@@ -123,9 +123,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         item(key = "spacer3") { Spacer(modifier = Modifier.height(8.dp)) }
 
         item(key = "temperature") {
-            TemperatureSection(
+            CreativitySection(
                 temperature = temperature,
-                onTemperatureChange = { temp ->
+                onCreativityChange = { temp ->
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.updateTemperature(temp)
                 }
@@ -288,7 +288,7 @@ private fun CustomModelSection(model: String, onModelChange: (String) -> Unit) {
 }
 
 @Composable
-private fun TemperatureSection(temperature: Float, onTemperatureChange: (Float) -> Unit) {
+private fun CreativitySection(temperature: Float, onCreativityChange: (Float) -> Unit) {
     SettingsCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -296,7 +296,7 @@ private fun TemperatureSection(temperature: Float, onTemperatureChange: (Float) 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Temperature",
+                text = "Creativity",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -307,10 +307,16 @@ private fun TemperatureSection(temperature: Float, onTemperatureChange: (Float) 
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Lower = focused, predictable · Higher = creative, varied",
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(modifier = Modifier.height(10.dp))
         Slider(
             value = temperature,
-            onValueChange = onTemperatureChange,
+            onValueChange = onCreativityChange,
             valueRange = 0f..2f,
             steps = 19,
             modifier = Modifier.fillMaxWidth().height(26.dp),

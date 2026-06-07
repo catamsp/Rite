@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
@@ -435,7 +437,7 @@ private fun CommandSearchBar(
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Clear",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -443,7 +445,7 @@ private fun CommandSearchBar(
                 Icon(
                     imageVector = if (expandedIds.isEmpty()) Icons.AutoMirrored.Filled.List else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (expandedIds.isEmpty()) "Expand all" else "Collapse all",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -579,6 +581,7 @@ private fun CommandItem(command: Command, allCommands: List<Command>, isExpanded
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommandDialog(
     prefix: String,
@@ -594,9 +597,13 @@ fun CommandDialog(
     var prompt by remember { mutableStateOf(initialPrompt) }
     var selectedType by remember { mutableStateOf(initialType) }
     var error by remember { mutableStateOf<String?>(null) }
+    var typeExpanded by remember { mutableStateOf(false) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color.White, RoundedCornerShape(20.dp)),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline),
             shape = RoundedCornerShape(20.dp)
         ) {
@@ -627,7 +634,13 @@ fun CommandDialog(
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
-                    label = { Text("Prompt or app:com.pkg, tel:..., https://...") },
+                    label = { Text(
+                        when (selectedType) {
+                            com.catamsp.rite.model.CommandType.AI -> "Prompt (or app:com.pkg, tel:+..., https://...)"
+                            com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Replacement text"
+                            com.catamsp.rite.model.CommandType.CONTEXT_AWARE -> "Prompt"
+                        }
+                    ) },
                     modifier = Modifier.fillMaxWidth().height(90.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.onSurface,
@@ -635,22 +648,42 @@ fun CommandDialog(
                     )
                 )
                 Spacer(modifier = Modifier.height(12.dp))
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    com.catamsp.rite.model.CommandType.entries.forEachIndexed { index, type ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = com.catamsp.rite.model.CommandType.entries.size),
-                            onClick = { selectedType = type },
-                            selected = selectedType == type,
-                            colors = SegmentedButtonDefaults.colors(
-                                activeContainerColor = MaterialTheme.colorScheme.onSurface,
-                                activeContentColor = MaterialTheme.colorScheme.background
+                ExposedDropdownMenuBox(
+                    expanded = typeExpanded,
+                    onExpandedChange = { typeExpanded = it }
+                ) {
+                    val typeLabel = when (selectedType) {
+                        com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Text Replacer"
+                        com.catamsp.rite.model.CommandType.CONTEXT_AWARE -> "Context-Aware"
+                        com.catamsp.rite.model.CommandType.AI -> {
+                            val p = prompt.trimStart()
+                            if (p.startsWith("app:") || p.startsWith("tel:") || p.startsWith("sms:") || p.startsWith("mailto:") || p.startsWith("https://") || p.startsWith("http://")) "Action" else "AI"
+                        }
+                    }
+                    OutlinedTextField(
+                        value = typeLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Type") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false }
+                    ) {
+                        listOf("AI" to com.catamsp.rite.model.CommandType.AI, "Text Replacer" to com.catamsp.rite.model.CommandType.TEXT_REPLACER, "Context-Aware" to com.catamsp.rite.model.CommandType.CONTEXT_AWARE, "Action" to com.catamsp.rite.model.CommandType.AI).forEach { (label, type) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    selectedType = type
+                                    typeExpanded = false
+                                }
                             )
-                        ) {
-                            Text(when (type) {
-                                com.catamsp.rite.model.CommandType.AI -> "AI"
-                                com.catamsp.rite.model.CommandType.TEXT_REPLACER -> "Text Replacer"
-                                com.catamsp.rite.model.CommandType.CONTEXT_AWARE -> "Context-Aware"
-                            })
                         }
                     }
                 }

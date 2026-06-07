@@ -4,16 +4,21 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -22,11 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.RiteApp
 import com.catamsp.rite.model.ProviderType
-import com.catamsp.rite.ui.components.ScreenTitle
 import com.catamsp.rite.ui.theme.OutlineDim
 import com.catamsp.rite.ui.theme.SurfaceTertiary
 import com.catamsp.rite.viewmodel.KeysViewModel
@@ -50,11 +55,8 @@ fun KeysScreen(
     val isLoading = keysState.isLoading
     val isKeystoreAvailable = keysState.isKeystoreAvailable
 
-    var newKey by remember { mutableStateOf("") }
-    var isTesting by remember { mutableStateOf(false) }
-    var testResult by remember { mutableStateOf<String?>(null) }
+    var showAddDialog by remember { mutableStateOf(false) }
     var keyToDelete by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -63,72 +65,16 @@ fun KeysScreen(
             .padding(horizontal = 16.dp)
             .padding(top = 24.dp)
     ) {
-        ScreenTitle("API Keys")
-
-        KeyCountSummary(keyCount = keys.size)
+        KeysHeader(
+            onAdd = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                showAddDialog = true
+            }
+        )
 
         if (!isKeystoreAvailable) {
             SecurityWarningCard()
         }
-
-        KeyInputCard(
-            newKey = newKey,
-            onNewKeyChange = { newKey = it },
-            isTesting = isTesting,
-            testResult = testResult,
-            onAddKey = {
-                if (newKey.isNotBlank()) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    isTesting = true
-                    testResult = null
-                    scope.launch {
-                        val trimmedKey = newKey.trim()
-                        if (keys.contains(trimmedKey)) {
-                            isTesting = false
-                            testResult = "This key has already been added"
-                            return@launch
-                        }
-
-                        val settingsState = settingsViewModel.state.value
-                        val result = withContext(Dispatchers.IO) {
-                            when {
-                                trimmedKey.startsWith("gsk_") -> {
-                                    app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
-                                }
-                                settingsState.providerType == ProviderType.CUSTOM && settingsState.customEndpoint.isNotBlank() -> {
-                                    app.openAIClient.validateKey(trimmedKey, settingsState.customEndpoint, settingsState.customModel)
-                                }
-                                settingsState.providerType == ProviderType.GROQ -> {
-                                    app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
-                                }
-                                else -> {
-                                    app.geminiClient.validateKey(trimmedKey)
-                                }
-                            }
-                        }
-
-                        if (result.isSuccess) {
-                            viewModel.addKey(trimmedKey) { addResult ->
-                                isTesting = false
-                                if (addResult.isSuccess) {
-                                    newKey = ""
-                                    testResult = "Valid key added!"
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
-                                } else {
-                                    testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
-                                }
-                            }
-                        } else {
-                            isTesting = false
-                            testResult = result.exceptionOrNull()?.message ?: "Validation failed"
-                        }
-                    }
-                }
-            }
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -160,6 +106,16 @@ fun KeysScreen(
         }
     }
 
+    if (showAddDialog) {
+        AddKeyDialog(
+            existingKeys = keys,
+            viewModel = viewModel,
+            settingsViewModel = settingsViewModel,
+            onDismiss = { showAddDialog = false },
+            onKeyAdded = { showAddDialog = false }
+        )
+    }
+
     keyToDelete?.let { keyValue ->
         AlertDialog(
             onDismissRequest = { keyToDelete = null },
@@ -180,6 +136,161 @@ fun KeysScreen(
                 }
             }
         )
+    }
+}
+
+private fun getProviderFromKey(key: String): String {
+    return when {
+        key.startsWith("gsk_") -> "Groq"
+        key.startsWith("AIza") -> "Gemini"
+        key.startsWith("sk-") -> "OpenAI"
+        else -> "Other"
+    }
+}
+
+@Composable
+private fun KeysHeader(onAdd: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "API Keys",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        IconButton(onClick = onAdd) {
+            Icon(Icons.Default.Add, contentDescription = "Add Key", tint = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable
+private fun AddKeyDialog(
+    existingKeys: List<String>,
+    viewModel: KeysViewModel,
+    settingsViewModel: SettingsViewModel,
+    onDismiss: () -> Unit,
+    onKeyAdded: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val app = context.applicationContext as RiteApp
+    val scope = rememberCoroutineScope()
+
+    var newKey by remember { mutableStateOf("") }
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color.White, RoundedCornerShape(20.dp)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.outline),
+            shape = RoundedCornerShape(20.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Add API Key", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = newKey,
+                    onValueChange = { newKey = it; testResult = null },
+                    label = { Text("API Key") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+                if (testResult != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = testResult!!,
+                        color = if (testResult!!.startsWith("Valid")) MaterialTheme.colorScheme.onSurface else SurfaceTertiary,
+                        fontSize = 13.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = {
+                            if (newKey.isNotBlank()) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isTesting = true
+                                testResult = null
+                                scope.launch {
+                                    val trimmedKey = newKey.trim()
+                                    if (existingKeys.contains(trimmedKey)) {
+                                        isTesting = false
+                                        testResult = "This key has already been added"
+                                        return@launch
+                                    }
+
+                                    val settingsState = settingsViewModel.state.value
+                                    val result = withContext(Dispatchers.IO) {
+                                        when {
+                                            trimmedKey.startsWith("gsk_") -> {
+                                                app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
+                                            }
+                                            settingsState.providerType == ProviderType.CUSTOM && settingsState.customEndpoint.isNotBlank() -> {
+                                                app.openAIClient.validateKey(trimmedKey, settingsState.customEndpoint, settingsState.customModel)
+                                            }
+                                            settingsState.providerType == ProviderType.GROQ -> {
+                                                app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
+                                            }
+                                            else -> {
+                                                app.geminiClient.validateKey(trimmedKey)
+                                            }
+                                        }
+                                    }
+
+                                    if (result.isSuccess) {
+                                        viewModel.addKey(trimmedKey) { addResult ->
+                                            isTesting = false
+                                            if (addResult.isSuccess) {
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                                                onKeyAdded()
+                                            } else {
+                                                testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
+                                            }
+                                        }
+                                    } else {
+                                        isTesting = false
+                                        testResult = result.exceptionOrNull()?.message ?: "Validation failed"
+                                    }
+                                }
+                            }
+                        },
+                        enabled = newKey.isNotBlank() && !isTesting,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onSurface,
+                            disabledContainerColor = MaterialTheme.colorScheme.onSurface,
+                            disabledContentColor = MaterialTheme.colorScheme.background
+                        )
+                    ) {
+                        Text(if (isTesting) "Testing..." else "Add Key", color = MaterialTheme.colorScheme.background)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -209,57 +320,6 @@ private fun SecurityWarningCard() {
 }
 
 @Composable
-private fun KeyInputCard(
-    newKey: String,
-    onNewKeyChange: (String) -> Unit,
-    isTesting: Boolean,
-    testResult: String?,
-    onAddKey: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            OutlinedTextField(
-                value = newKey,
-                onValueChange = onNewKeyChange,
-                label = { Text("API Key") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                )
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = onAddKey,
-                    enabled = newKey.isNotBlank() && !isTesting,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface)
-                ) {
-                    Text(if (isTesting) "Testing..." else "Add Key", color = MaterialTheme.colorScheme.background)
-                }
-            }
-            if (testResult != null) {
-                Text(
-                    text = testResult,
-                    color = if (testResult.startsWith("Valid")) MaterialTheme.colorScheme.onSurface else SurfaceTertiary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun EmptyKeyState() {
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
@@ -271,7 +331,7 @@ private fun EmptyKeyState() {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "Add one above to get started",
+            text = "Tap + to add one",
             fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -279,36 +339,8 @@ private fun EmptyKeyState() {
 }
 
 @Composable
-private fun KeyCountSummary(keyCount: Int) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = when (keyCount) {
-                    0 -> "No API Keys"
-                    1 -> "1 API Key"
-                    else -> "$keyCount API Keys"
-                },
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = if (keyCount == 0) "Add a key below to get started" else "Add more keys for failover",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-    Spacer(modifier = Modifier.height(12.dp))
-}
-
-@Composable
 private fun KeyItem(maskedKey: String, isReady: Boolean, remainingMs: Long?, onDelete: () -> Unit) {
+    val provider = remember(maskedKey) { getProviderFromKey(maskedKey) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -321,7 +353,8 @@ private fun KeyItem(maskedKey: String, isReady: Boolean, remainingMs: Long?, onD
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -331,7 +364,19 @@ private fun KeyItem(maskedKey: String, isReady: Boolean, remainingMs: Long?, onD
                             shape = RoundedCornerShape(4.dp)
                         )
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = provider,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 Text(
                     text = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + maskedKey.takeLast(6),
                     fontWeight = FontWeight.Medium,
