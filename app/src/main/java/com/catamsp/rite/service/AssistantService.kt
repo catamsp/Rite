@@ -365,9 +365,10 @@ class AssistantService : AccessibilityService() {
     ): Job = serviceScope.launch {
         var spinnerJob: Job? = null
         var inputField: AccessibilityNodeInfo? = null
+        val isScreenshotCommand = command.trigger.endsWith("sreply")
         try {
             withTimeout(AI_COMMAND_TIMEOUT_MS) {
-                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: starting, closing keyboard")
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: starting${if (isScreenshotCommand) " (screenshot)" else ""}, closing keyboard")
 
                 // Step 1: Close keyboard
                 performGlobalAction(GLOBAL_ACTION_BACK)
@@ -390,10 +391,157 @@ class AssistantService : AccessibilityService() {
                     return@withTimeout
                 }
 
-                // Step 3: Re-acquire input field and screen context after keyboard close
+                // Step 3: Re-acquire input field after keyboard close
+                val root = try {
+                    getRootInActiveWindow()
+                } catch (e: Exception) {
+                    Log.e("Rite", "CtxAware: getRootInActiveWindow failed", e)
+                    null
+                }
+
+                inputField = root?.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+                if (ENABLE_DEBUG_LOGGING) {
+                    val inputText = inputField?.text?.toString() ?: "null"
+                    Log.d("Rite", "CtxAware: inputField found=${inputField != null} text='${inputText.take(30)}'")
+                }
+
+                val ctxSource = inputField ?: source
+
+                // Step 4a: Screenshot mode — capture screenshot and send as image
+                if (isScreenshotCommand) {
+                    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
+                        root?.recycle()
+                        withContext(Dispatchers.Main) {
+                            textHelper.replaceText(ctxSource, "")
+                            toastManager.show("Screenshot requires Android 11+")
+                        }
+                        return@withTimeout
+                    }
+
+                    val screenshotResult = try {
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: capturing screenshot")
+                        ScreenshotCapture.capture(this@AssistantService).getOrThrow()
+                    } catch (e: Exception) {
+                        Log.e("Rite", "CtxAware: screenshot capture FAILED", e)
+                        root?.recycle()
+                        withContext(Dispatchers.Main) {
+                            textHelper.replaceText(ctxSource, "")
+                            toastManager.show("Screenshot failed: ${e.message}")
+                        }
+                        return@withTimeout
+                    }
+                    root?.recycle()
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: screenshot captured ${screenshotResult.width}x${screenshotResult.height}")
+
+                    // Step 5a: Read provider settings
+                    val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
+                    val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
+                    val model: String
+                    val endpoint: String
+
+                    when (providerType) {
+                        ProviderType.CUSTOM -> {
+                            model = prefs.getString("custom_model", "") ?: ""
+                            endpoint = prefs.getString("custom_endpoint", "") ?: ""
+                            if (model.isBlank() || endpoint.isBlank()) {
+                                withContext(Dispatchers.Main) {
+                                    textHelper.replaceText(ctxSource, "")
+                                    toastManager.show("Custom provider not configured in Settings")
+                                }
+                                return@withTimeout
+                            }
+                        }
+                        ProviderType.GROQ -> {
+                            model = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"
+                            endpoint = "https://api.groq.com/openai/v1"
+                        }
+                        else -> {
+                            model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
+                            endpoint = ""
+                        }
+                    }
+
+                    val instructionPart = if (userInstruction.isNotBlank()) {
+                        " The user wants the reply tone/style to be: $userInstruction."
+                    } else ""
+                    val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a screenshot from the user's screen showing a conversation. Generate a natural, conversational reply to the conversation visible in the screenshot.$instructionPart Return ONLY the reply text with no explanations or commentary."
+
+                    toastManager.show("Using $providerType / $model")
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI (screenshot) provider=$providerType model=$model keys=${keyManager.getKeys().size}")
+
+                    // Step 6a: Call AI with screenshot
+                    val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
+                    var lastErrorMsg: String? = null
+                    var succeeded = false
+
+                    for (attempt in 0 until maxAttempts) {
+                        val key = keyManager.getNextKey() ?: break
+
+                        if (spinnerJob == null) {
+                            spinnerJob = textHelper.startInlineSpinner(ctxSource, "")
+                        }
+
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: attempt ${attempt + 1}/$maxAttempts")
+
+                        val result = when (providerType) {
+                            ProviderType.GROQ -> openAIClient.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, endpoint, contextAwareSystemPrompt)
+                            ProviderType.CUSTOM -> openAIClient.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, endpoint, contextAwareSystemPrompt)
+                            else -> client.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, contextAwareSystemPrompt)
+                        }
+
+                        if (result.isSuccess) {
+                            val generateResult = result.getOrThrow()
+                            spinnerJob!!.cancel()
+                            spinnerJob = null
+                            textHelper.replaceText(ctxSource, generateResult.text)
+                            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            succeeded = true
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: SUCCESS '${generateResult.text.take(50)}'")
+                            break
+                        }
+
+                        val msg = result.exceptionOrNull()?.message ?: ""
+                        lastErrorMsg = msg
+                        Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} error='$msg'")
+                        val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
+                        val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
+
+                        when {
+                            isRateLimit -> {
+                                val seconds = Regex("retry after (\\d+)s").find(msg)?.groupValues?.get(1)?.toLongOrNull() ?: 60
+                                keyManager.reportRateLimit(key, seconds)
+                            }
+                            isInvalidKey -> keyManager.markInvalid(key)
+                            else -> break
+                        }
+                    }
+
+                    if (!succeeded) {
+                        spinnerJob?.cancel(); spinnerJob = null
+                        withContext(Dispatchers.Main) {
+                            try { textHelper.replaceText(ctxSource, "") } catch (_: Exception) {}
+                            performHapticFeedback(HapticFeedbackConstants.REJECT)
+                        }
+                        if (lastErrorMsg != null) {
+                            toastManager.show(mapErrorMessage(lastErrorMsg))
+                        } else {
+                            val waitMs = keyManager.getShortestWaitTimeMs()
+                            when {
+                                waitMs != null -> {
+                                    val waitSec = ((waitMs + 999) / 1000).coerceAtLeast(1)
+                                    toastManager.show("API rate limited. Try again in ${waitSec}s or switch provider in Settings")
+                                }
+                                keyManager.getKeys().isEmpty() -> toastManager.show("No API keys configured. Add one in Settings")
+                                else -> toastManager.show("API key invalid. Check Settings → API Keys")
+                            }
+                        }
+                    }
+                    return@withTimeout
+                }
+
+                // Step 4b: Text mode — collect screen text (freply/qreply)
                 val screenContext: String = try {
-                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: getting root window")
-                    val root = getRootInActiveWindow()
                     if (root == null) {
                         Log.e("Rite", "CtxAware: root is null")
                         withContext(Dispatchers.Main) {
@@ -403,14 +551,6 @@ class AssistantService : AccessibilityService() {
                         return@withTimeout
                     }
 
-                    // Re-acquire the input field from the live window (source is stale after keyboard close)
-                    inputField = root.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
-                    if (ENABLE_DEBUG_LOGGING) {
-                        val inputText = inputField?.text?.toString() ?: "null"
-                        Log.d("Rite", "CtxAware: inputField found=${inputField != null} text='${inputText.take(30)}'")
-                    }
-
-                    val ctxSource = inputField ?: source
                     val mode = if (command.trigger.endsWith("freply"))
                         ScreenContextCollector.ContextMode.FULL
                     else
@@ -437,7 +577,7 @@ class AssistantService : AccessibilityService() {
                     return@withTimeout
                 }
 
-                // Step 4: Read provider settings
+                // Step 5b: Read provider settings
                 val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
                 val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
                 val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
@@ -474,8 +614,7 @@ class AssistantService : AccessibilityService() {
                 toastManager.show("Using $providerType / $model")
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI provider=$providerType model=$model keys=${keyManager.getKeys().size}")
 
-                // Step 5: Call AI with prompt + screen context
-                val ctxSource = inputField ?: source
+                // Step 6b: Call AI with prompt + screen context
                 val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
                 var lastErrorMsg: String? = null
                 var succeeded = false
@@ -524,7 +663,6 @@ class AssistantService : AccessibilityService() {
 
                 if (!succeeded) {
                     spinnerJob?.cancel(); spinnerJob = null
-                    val ctxSource = inputField ?: source
                     withContext(Dispatchers.Main) {
                         try { textHelper.replaceText(ctxSource, "") } catch (_: Exception) {}
                         performHapticFeedback(HapticFeedbackConstants.REJECT)

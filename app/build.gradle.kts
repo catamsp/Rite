@@ -13,8 +13,8 @@ android {
         applicationId = "com.catamsp.rite"
         minSdk = 23
         targetSdk = 36
-        versionCode = 6
-        versionName = "2.0.5"
+        versionCode = 7
+        versionName = "2.0.6"
 
         vectorDrawables {
             useSupportLibrary = true

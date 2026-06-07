@@ -38,7 +38,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var groqModelExpanded by remember { mutableStateOf(false) }
-    val geminiModels = remember { listOf("gemini-2.5-flash-lite", "gemini-3.5-flash", "gemini-3.1-flash-lite") }
+    val geminiModels = remember { listOf("gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-flash-lite", "gemini-3.5-flash") }
     val groqModels = remember { listOf("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "meta-llama/llama-4-scout-17b-16e-instruct") }
 
     var localEndpoint by remember { mutableStateOf(settingsState.customEndpoint) }

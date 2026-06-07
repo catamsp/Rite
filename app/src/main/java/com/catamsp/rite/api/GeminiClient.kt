@@ -229,4 +229,111 @@ class GeminiClient {
         }
         return result
     }
+
+    suspend fun generateWithImage(
+        prompt: String,
+        imageBase64: String,
+        apiKey: String,
+        model: String,
+        temperature: Double,
+        systemPromptOverride: String? = null
+    ): Result<GenerateResult> = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            val encodedKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8.name())
+            connection = URL("https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$encodedKey")
+                .openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 60_000
+
+            val systemMessage = systemPromptOverride
+                ?: "You are a contextual reply assistant. You can see a screenshot from the user's screen. Generate a natural reply. Return ONLY the reply with no explanations."
+
+            val jsonBody = JSONObject().apply {
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("text", systemMessage)
+                        })
+                    })
+                })
+                put("contents", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            if (prompt.isNotBlank()) {
+                                put(JSONObject().apply {
+                                    put("text", prompt)
+                                })
+                            }
+                            put(JSONObject().apply {
+                                put("inlineData", JSONObject().apply {
+                                    put("mimeType", "image/jpeg")
+                                    put("data", imageBase64)
+                                })
+                            })
+                        })
+                    })
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", temperature)
+                    put("maxOutputTokens", 2048)
+                })
+            }
+
+            connection.outputStream.use { os ->
+                os.write(jsonBody.toString().toByteArray(Charsets.UTF_8))
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode in 200..299) {
+                val response = ApiClientUtils.readResponseBounded(connection.inputStream)
+                val jsonResponse = JSONObject(response)
+                val candidates = jsonResponse.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
+                    val candidate = candidates.getJSONObject(0)
+                    val content = candidate.optJSONObject("content")
+                    val parts = content?.optJSONArray("parts")
+                    if (parts != null && parts.length() > 0) {
+                        var resultText = parts.getJSONObject(0).optString("text", "")
+                        if (resultText.isBlank()) {
+                            return@withContext Result.failure(Exception("Model returned empty response"))
+                        }
+                        if (resultText.startsWith("```")) {
+                            val lines = resultText.lines().toMutableList()
+                            if (lines.isNotEmpty() && lines.first().startsWith("```")) lines.removeAt(0)
+                            if (lines.isNotEmpty() && lines.last().startsWith("```")) lines.removeAt(lines.size - 1)
+                            resultText = lines.joinToString("\n")
+                        }
+                        Result.success(GenerateResult(resultText.trim()))
+                    } else {
+                        Result.failure(Exception("No content found in response"))
+                    }
+                } else {
+                    Result.failure(Exception("No candidates found in response"))
+                }
+            } else if (responseCode == 429) {
+                val retryAfter = connection.getHeaderField("Retry-After")
+                val seconds = retryAfter?.toLongOrNull()
+                val msg = if (seconds != null) "Rate limit exceeded, retry after ${seconds}s" else "Rate limit exceeded"
+                Result.failure(Exception(msg))
+            } else if (responseCode == 400 || responseCode == 403) {
+                val errorBody = ApiClientUtils.readErrorBody(connection.errorStream)
+                val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
+                val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
+                val detail = if (apiMessage.isNotEmpty()) apiMessage else if (responseCode == 403) "Invalid API key" else "Bad request"
+                Result.failure(Exception("HTTP $responseCode: $detail"))
+            } else {
+                val error = ApiClientUtils.readErrorBody(connection.errorStream)
+                Result.failure(Exception("HTTP $responseCode: $error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            connection?.disconnect()
+        }
+    }
 }

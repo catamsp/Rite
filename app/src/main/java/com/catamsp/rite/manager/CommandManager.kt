@@ -67,7 +67,8 @@ class CommandManager(context: Context) {
     // Context-aware commands (screen context)
     private val contextAwareDefinitions = listOf(
         "freply" to "Generate a natural reply based on the visible screen conversation. Return ONLY the reply with no explanations or commentary.",
-        "qreply" to "Generate a natural reply based on recent screen messages. Return ONLY the reply with no explanations or commentary."
+        "qreply" to "Generate a natural reply based on recent screen messages. Return ONLY the reply with no explanations or commentary.",
+        "sreply" to "Analyze the screenshot and generate a natural reply to the visible conversation. Return ONLY the reply with no explanations or commentary."
     )
 
     fun getTriggerPrefix(): String = cachedPrefix
