@@ -18,6 +18,7 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 [![F-Droid](https://img.shields.io/f-droid/v/com.catamsp.rite?style=for-the-badge&label=F-Droid&logo=fdroid&logoColor=white)](https://f-droid.org/packages/com.catamsp.rite)
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#%EF%B8%8F-tech-stack)
 [![Gemini](https://img.shields.io/badge/Gemini_AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-ai-providers)
+[![Groq](https://img.shields.io/badge/Groq-F55036?style=for-the-badge&logo=groq&logoColor=white)](#-ai-providers)
 [![OpenAI](https://img.shields.io/badge/OpenAI_Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](#-ai-providers)
 [![License: MIT](https://img.shields.io/badge/MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
@@ -47,6 +48,7 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 - [Features](#-features)
 - [Complete Command Reference](#-complete-command-reference)
   - [AI Commands](#-ai-commands-requires-api-key)
+  - [Context-Aware Commands](#-context-aware-commands--requires-api-key--screen-context)
   - [Local Utility Commands](#%EF%B8%8F-local-utility-commands-offline)
   - [Intent Commands](#-intent-commands-launch-apps--actions)
   - [Dynamic Translate](#-dynamic-translate)
@@ -65,18 +67,13 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 
 ### Screenshots
 
-> [!NOTE]
-> Screenshots may not reflect the latest UI updates including the monochrome theme, API Key Status card, and Commands screen refactor.
-
 <p align="center">
-  <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%201.jpg" width="32%" alt="Dashboard">
-  <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%202.jpg" width="32%" alt="Commands">
-  <img src="https://github.com/catamsp/Rite/raw/main/demo/Image%203.jpg" width="32%" alt="Settings">
+  <img src="demo/image 1.jpg" width="19%" alt="Home">
+  <img src="demo/image 2.jpg" width="19%" alt="Keys">
+  <img src="demo/image 3.jpg" width="19%" alt="Commands">
+  <img src="demo/image 4.jpg" width="19%" alt="Settings">
+  <img src="demo/image 5.jpg" width="19%" alt="About">
 </p>
-
-### Video
-
-<video src="https://github.com/catamsp/Rite/raw/main/demo/Video%201.mp4" controls muted loop width="100%"></video>
 
 <br>
 
@@ -116,20 +113,23 @@ Type a trigger and the text transforms right where you're typing. No copy-paste.
 ### 🤖 AI + Local Commands
 15+ AI-powered text transformations AND 20+ offline local utilities — all in one place.
 
+### 📸 Screen-Aware AI
+`?freply`, `?qreply`, and `?sreply` read visible screen text or capture screenshots for context-aware replies. Opt-in via Settings.
+
 </td>
 <td width="50%">
 
 ### 🔌 Multiple AI Providers
-Use **Google Gemini** or connect **any OpenAI-compatible API** (OpenAI, Claude, local LLMs, self-hosted).
+Use **Google Gemini**, **Groq**, or connect **any OpenAI-compatible API** (OpenAI, Claude, local LLMs, self-hosted).
 
 ### 📱 Launch Apps & Actions
 Open apps, make calls, send SMS, compose emails, and visit URLs — all by typing a trigger.
 
 ### 📊 Real-Time Key Status
-Dashboard shows which API keys are active ("Alive") and which are cooling down ("Resting") with live countdown timers.
+Keys tab shows each key's provider (Groq, Gemini, OpenAI) and status ("Active" or "Rate limited") with live countdown timers.
 
 ### 🎨 Filtered Commands Tab
-Browse commands with filter chips (All / AI / Local / Action). Add and edit custom commands via a clean popup dialog.
+Browse commands with filter chips (All / AI / Local / Action / Replacer / Context-Aware). Add and edit custom commands via a clean popup dialog.
 
 ### 🔒 Privacy-First Design
 Zero telemetry. Zero analytics. API keys encrypted in Android Keystore. All network traffic forced HTTPS.
@@ -142,7 +142,7 @@ Zero telemetry. Zero analytics. API keys encrypted in Android Keystore. All netw
 
 ## 📖 Complete Command Reference
 
-Rite has **four types of commands**: AI (cloud), Local (offline), Intent (launch apps), and Custom (user-defined).
+Rite has **five types of commands**: AI (cloud), Context-Aware (screen-aware AI), Local (offline), Intent (launch apps), and Custom (user-defined).
 
 ### 🤖 AI Commands — Requires API Key
 
@@ -165,6 +165,21 @@ These send your text to the configured AI provider and return a transformed resu
 | **`?tl`** | Translate to English (auto-detect) | Any language → English |
 | **`?explain`** | Explain in simple terms | Complex text → Easy understanding |
 | **`?fancy`** | Convert to fancy unicode font | `hello` → `𝒽𝑒𝓁𝓁𝑜` |
+
+---
+
+### 📸 Context-Aware Commands — Requires API Key + Screen Context
+
+These read visible screen text (or capture a screenshot) and send it to AI for context-aware replies. **Requires:** At least one API key + **Screen Context toggle ON** in Settings (default OFF for privacy).
+
+| Trigger | What It Does | Example |
+|:--------|:-------------|:--------|
+| **`?freply`** | Full screen context reply | Reads all visible text on screen, sends to AI for a reply |
+| **`?qreply`** | Quick recent context reply | Reads recent text changes, sends to AI for a faster reply |
+| **`?sreply`** | Screenshot-based reply (Android 11+) | Captures a screenshot and sends it to AI with your text |
+
+> [!NOTE]
+> Screen context commands close the keyboard before reading the screen. The AI sees what's visible on your screen and crafts a reply based on the full context. Use `?sreply` when you need the AI to see images or UI elements.
 
 ---
 
@@ -281,7 +296,7 @@ Create your own trigger → prompt pairs in the **Commands** tab:
 4. Tap **Save**
 5. Use it anywhere: type your text ending with `?poem`
 
-**Filter your commands** using the chips at the top: **All** · **AI** · **Local** · **Action**
+**Filter your commands** using the dropdown: **AI** · **Text Replacer** · **Context-Aware** · **Action**
 
 **Edit or delete** custom commands using the ✏️ and 🗑️ icons next to each entry.
 
@@ -351,7 +366,7 @@ Rite uses Android's Accessibility Service to read text fields. Most standard `Ed
 **2.** Install the APK on your Android device
 
 **3.** Enable the Accessibility Service:
-   - Open **Rite** → go to **Dashboard** tab
+   - Open **Rite** → go to **Home** tab
    - Tap **Enable** → or go to **Settings → Accessibility → Rite Assistant** → Toggle **On**
    - Confirm the security warning prompt
 
@@ -364,6 +379,7 @@ Rite uses Android's Accessibility Service to read text fields. Most standard `Ed
 
 ### Getting an API Key
 
+- **Groq (free tier):** [console.groq.com](https://console.groq.com) → Create API key (fastest inference)
 - **Google Gemini (free):** [aistudio.google.com](https://aistudio.google.com/apikey) → Create API key
 - **OpenAI:** [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 - **Any OpenAI-compatible provider:** Get the base URL and API key from your provider
@@ -385,10 +401,18 @@ flowchart TD
     G -->|"🤖 AI\n(?fix, ?formal, ?sum)"| I["📡 Send to AI provider\nvia HTTPS"]
     G -->|"📱 Intent\n(?wp, ?call, ?sms)"| J["🚀 Launch system\nintent"]
     G -->|"🌐 Translate\n(?translate:es)"| K["📡 Send to AI with\ntranslate prompt"]
+    G -->|"📸 Context-Aware\n(?freply, ?sreply)"| SA["🔍 Read screen text\nor capture screenshot"]
+    G -->|"⌨️ Context-Aware\n(?qreply)"| SB["🔍 Read recent\ntext changes"]
 
     I --> L{"✅ Did AI\nsucceed?"}
     L -- "❌ No" --> M["↩️ Restore original text\nshow error toast"]
     L -- "✅ Yes" --> N["✏️ Replace text\nwith AI result"]
+
+    SA --> SC["📡 Send context + text\nto AI provider"]
+    SB --> SC
+    SC --> SD{"✅ Did AI\nsucceed?"}
+    SD -- "❌ No" --> M
+    SD -- "✅ Yes" --> N
 
     H --> O["✏️ Replace text\nwith result"]
     J --> P["📲 App/action opens\ntext field cleared"]
@@ -453,6 +477,54 @@ Only when you type a trigger:
 <br>
 
 ## 📝 Changelog
+
+### v2.0.6 — UI Overhaul & Screen-Aware AI
+
+#### New Features
+- **Screenshot command (`?sreply`)** — Captures screen and sends screenshot to AI for visual context replies (Android 11+)
+- **Screen-Aware AI** — `?freply` and `?qreply` now read visible screen text for context-aware replies
+- **Screen Context toggle** — Privacy-first opt-in toggle in Settings (default OFF)
+- **5-tab navigation** — Added About tab with command reference and trigger prefix info
+- **Floating pill dock** — Custom bottom navigation with sliding pill indicator
+- **Key provider badges** — Each API key shows its provider (Groq, Gemini, OpenAI, Other)
+- **Groq provider support** — Built-in Groq integration with model picker
+- **Creativity slider** — Replaced "Temperature" with "Creativity" and added description
+- **Command type dropdown** — Add/Edit dialog now uses dropdown with AI, Text Replacer, Context-Aware, Action options
+- **Press animations** — Cards scale on press with spring animation
+- **Disable button** — Dashboard now shows Enable/Disable button for accessibility service
+
+#### UI/UX Improvements
+- **Minimal API Keys page** — Title bar with + button, dialog-based key input
+- **Cleaner Home page** — Removed redundant key status (moved to Keys page)
+- **Numbered steps** — "How it works" section uses numbered badges
+- **Consistent text sizing** — ScreenTitle reduced to 26.sp, key text to 12.sp
+- **Standard labels** — All status text uses standard Android terminology
+- **Clickable links** — About page has clickable GitHub links for catamsp and SwiftSlate
+
+#### Bug Fixes
+- **Toast root cause fixed** — Fixed applicationContext issue preventing overlay toasts
+- **Stale node after keyboard close** — Fixed screen context collection after keyboard dismissal
+- **Bitmap recycling crash** — Fixed accessing recycled bitmap dimensions in screenshot capture
+- **Duplicate key crash** — Fixed duplicate keys in LazyColumn
+
+---
+
+### v2.0.5 — Screen-Aware AI & Screenshot Support
+
+#### New Features
+- **Context-Aware commands** — `?freply` (full screen) and `?qreply` (quick) read visible text for AI context
+- **Screenshot capture** — `?sreply` captures screen and sends as image to AI (Android 11+)
+- **Gemini vision support** — Screenshot sent as inline image to Gemini models
+- **OpenAI vision support** — Screenshot sent as base64 image_url to OpenAI-compatible providers
+- **Screen Context privacy toggle** — Opt-in setting (default OFF) to enable screen reading
+- **Always-on error logging** — Critical errors logged even when debug mode is off
+- **Provider/model toast** — Shows which provider/model is being used on each request
+
+#### Bug Fixes
+- **Custom command cache** — Settings changes now properly invalidate command cache
+- **triggerLastChars early exit** — Fixed bug causing triggers to be missed
+
+---
 
 ### v2.0.1 — UI Polish & Reliability
 
@@ -543,6 +615,8 @@ Only when you type a trigger:
 | **Async** | Kotlin Coroutines + SupervisorJob |
 | **Security** | Android Keystore + AES-256-GCM |
 | **Storage** | SharedPreferences (encrypted for keys) |
+| **Screen Context** | Accessibility node tree traversal + screenshot capture (API 30+) |
+| **AI Providers** | Google Gemini, Groq, OpenAI-compatible (any provider) |
 
 <br>
 
@@ -550,7 +624,7 @@ Only when you type a trigger:
 
 <div align="center">
 
-Built by [**catamsp**](https://github.com/catamsp) · Vibe Coded 🎨
+Built by [**catamsp**](https://github.com/catamsp)
 
 Forked from [**SwiftSlate**](https://github.com/Musheer360) by [**Musheer Alam**](https://github.com/Musheer360)
 

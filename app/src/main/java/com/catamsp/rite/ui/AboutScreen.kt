@@ -44,11 +44,9 @@ fun AboutScreen(viewModel: SettingsViewModel = viewModel()) {
 
         item(key = "spacer1") { Spacer(modifier = Modifier.height(12.dp)) }
 
-        item(key = "ref_ai_header") {
-            CommandReferenceHeader(title = "AI Commands")
-        }
-        item(key = "ref_ai_1") {
-            CommandReferenceChunk(
+        item(key = "ref_ai") {
+            CommandSection(
+                title = "AI Commands",
                 commands = listOf(
                     "${triggerPrefix}fix" to "\"i dont no\" → \"I don't know\"",
                     "${triggerPrefix}formal" to "Casual → Professional tone",
@@ -59,38 +57,34 @@ fun AboutScreen(viewModel: SettingsViewModel = viewModel()) {
                     "${triggerPrefix}reply" to "Paste a message → Get a reply",
                     "${triggerPrefix}sum" to "Long text → Summary",
                     "${triggerPrefix}bullet" to "Paragraphs → Bullet points",
-                )
-            )
-        }
-        item(key = "ref_ai_2") {
-            CommandReferenceChunk(
-                commands = listOf(
                     "${triggerPrefix}rewrite" to "Same meaning, new words",
                     "${triggerPrefix}remove" to "Clean messy text",
                     "${triggerPrefix}tl" to "Any language → English",
                     "${triggerPrefix}explain" to "Complex → Simple terms",
-                    "${triggerPrefix}fancy" to "\"hello\" → \"\uD83D\uDCD3\u0435\u043B\u043B\u043E\"",
-                    "${triggerPrefix}translate:es" to "\"Hello\" → \"Hola\"",
+                    "${triggerPrefix}fancy" to "\"hello\" → \"✨ 𝓱𝑒𝑙𝑙𝑜 ✨\"",
+                    "${triggerPrefix}translate:es" to "\"Hello\" → \"Hola\""
                 )
             )
         }
-        item(key = "ref_ctx_header") {
-            CommandReferenceHeader(title = "Context-Aware Commands")
-        }
-        item(key = "ref_ctx_1") {
-            CommandReferenceChunk(
+
+        item(key = "spacer2") { Spacer(modifier = Modifier.height(12.dp)) }
+
+        item(key = "ref_ctx") {
+            CommandSection(
+                title = "Context-Aware Commands",
                 commands = listOf(
                     "${triggerPrefix}freply" to "Full screen context reply",
                     "${triggerPrefix}qreply" to "Quick recent context reply",
-                    "${triggerPrefix}sreply" to "Screenshot-based reply (Android 11+)",
+                    "${triggerPrefix}sreply" to "Screenshot-based reply (Android 11+)"
                 )
             )
         }
-        item(key = "ref_local_header") {
-            CommandReferenceHeader(title = "Local Commands (Offline)")
-        }
-        item(key = "ref_local_1") {
-            CommandReferenceChunk(
+
+        item(key = "spacer3") { Spacer(modifier = Modifier.height(12.dp)) }
+
+        item(key = "ref_local") {
+            CommandSection(
+                title = "Local Commands (Offline)",
                 commands = listOf(
                     "${triggerPrefix}cp" to "Copy text to clipboard",
                     "${triggerPrefix}ct" to "Cut text to clipboard",
@@ -101,46 +95,35 @@ fun AboutScreen(viewModel: SettingsViewModel = viewModel()) {
                     "${triggerPrefix}title" to "\"the wall\" → \"The Wall\"",
                     "${triggerPrefix}date" to "Insert date & time",
                     "${triggerPrefix}time" to "Insert current time",
-                )
-            )
-        }
-        item(key = "ref_local_2") {
-            CommandReferenceChunk(
-                commands = listOf(
                     "${triggerPrefix}count" to "Show word & char count",
                     "${triggerPrefix}trim" to "Clean extra spaces & lines",
                     "${triggerPrefix}join" to "Multi-line → Single line",
                     "${triggerPrefix}split" to "Long text → Short lines",
                     "${triggerPrefix}sort" to "Sort lines alphabetically",
                     "${triggerPrefix}dedupe" to "Remove duplicate lines",
-                    "${triggerPrefix}bold" to "\u201Chello\u201D \u2192 \u201C𝐡𝐞𝐥𝐥𝐨\u201D",
-                    "${triggerPrefix}italic" to "\u201Chello\u201D \u2192 \u201Cℎ𝑒𝑙𝑙𝑜\u201D",
+                    "${triggerPrefix}bold" to "\"hello\" → \"𝐡𝐞𝐥𝐥𝐨\"",
+                    "${triggerPrefix}italic" to "\"hello\" → \"ℎ𝑒𝑙𝑙𝑜\"",
                     "${triggerPrefix}rot13" to "Rot13 encode/decode",
-                )
-            )
-        }
-        item(key = "ref_local_3") {
-            CommandReferenceChunk(
-                commands = listOf(
                     "${triggerPrefix}md5" to "Calculate MD5 hash",
-                    "${triggerPrefix}upside" to "\"hello\" → \"\u0285\u01DD\u026C\u0131\"",
+                    "${triggerPrefix}upside" to "\"hello\" → \"ollǝɥ\"",
                     "${triggerPrefix}mirror" to "\"hello\" → \"olleh\"",
                     "${triggerPrefix}reverse" to "\"hello world\" → \"world hello\"",
-                    "${triggerPrefix}undo" to "Restore previous text",
+                    "${triggerPrefix}undo" to "Restore previous text"
                 )
             )
         }
-        item(key = "ref_intent_header") {
-            CommandReferenceHeader(title = "Intent Commands (Custom)")
-        }
+
+        item(key = "spacer4") { Spacer(modifier = Modifier.height(12.dp)) }
+
         item(key = "ref_intent") {
-            CommandReferenceChunk(
+            CommandSection(
+                title = "Intent Commands (Custom)",
                 commands = listOf(
                     "${triggerPrefix}wp" to "app:com.whatsapp → Opens WhatsApp",
                     "${triggerPrefix}call" to "tel:+919876543210 → Makes a call",
                     "${triggerPrefix}sms" to "sms:+919876543210 → Opens SMS",
                     "${triggerPrefix}mail" to "mailto:user@email.com → Opens email",
-                    "${triggerPrefix}google" to "https://google.com → Opens URL",
+                    "${triggerPrefix}google" to "https://google.com → Opens URL"
                 )
             )
         }
@@ -183,15 +166,10 @@ private fun AboutSection() {
 }
 
 @Composable
-private fun CommandReferenceHeader(title: String) {
+private fun CommandSection(title: String, commands: List<Pair<String, String>>) {
     AboutCard {
         SettingsLabel(title)
-    }
-}
-
-@Composable
-private fun CommandReferenceChunk(commands: List<Pair<String, String>>) {
-    AboutCard {
+        Spacer(modifier = Modifier.height(12.dp))
         commands.forEach { (trigger, desc) ->
             CmdExample(trigger, desc)
         }
