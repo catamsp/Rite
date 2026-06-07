@@ -13,25 +13,46 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -39,6 +60,7 @@ import com.catamsp.rite.ui.DashboardScreenPrototype
 import com.catamsp.rite.ui.CommandsScreen
 import com.catamsp.rite.ui.KeysScreen
 import com.catamsp.rite.ui.SettingsScreen
+import com.catamsp.rite.ui.AboutScreen
 import com.catamsp.rite.ui.theme.RiteTheme
 import com.catamsp.rite.viewmodel.CommandsViewModel
 import com.catamsp.rite.viewmodel.DashboardViewModel
@@ -93,10 +115,11 @@ class MainActivity : ComponentActivity() {
 }
 
 enum class Tab(@StringRes val titleRes: Int, val icon: ImageVector) {
-    Dashboard(R.string.app_name, Icons.Default.Home),
-    Keys(R.string.app_name, Icons.Default.Lock),
-    Commands(R.string.app_name, Icons.AutoMirrored.Filled.List),
-    Settings(R.string.app_name, Icons.Default.Settings)
+    Dashboard(R.string.tab_home, Icons.Default.Home),
+    Keys(R.string.tab_keys, Icons.Default.Lock),
+    Commands(R.string.tab_commands, Icons.AutoMirrored.Filled.List),
+    Settings(R.string.tab_settings, Icons.Default.Settings),
+    About(R.string.tab_about, Icons.Default.Person)
 }
 
 @Composable
@@ -117,6 +140,7 @@ fun RiteMainScreen() {
                     Tab.Keys -> KeysScreen(viewModel = keysViewModel, settingsViewModel = settingsViewModel)
                     Tab.Commands -> CommandsScreen(viewModel = commandsViewModel)
                     Tab.Settings -> SettingsScreen(viewModel = settingsViewModel)
+                    Tab.About -> AboutScreen(viewModel = settingsViewModel)
                 }
             }
         }
@@ -125,34 +149,15 @@ fun RiteMainScreen() {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.background,
-                tonalElevation = 0.dp
-            ) {
-                Tab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        icon = {
-                            Icon(
-                                tab.icon,
-                                contentDescription = stringResource(tab.titleRes)
-                            )
-                        },
-                        label = null,
-                        selected = selectedTab == tab,
-                        onClick = {
-                            if (selectedTab != tab) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                selectedTab = tab
-                            }
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
+            FloatingTabBar(
+                selectedTab = selectedTab,
+                onTabSelected = { tab ->
+                    if (selectedTab != tab) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        selectedTab = tab
+                    }
                 }
-            }
+            )
         }
     ) { innerPadding ->
         AnimatedContent(
@@ -174,6 +179,67 @@ fun RiteMainScreen() {
             label = "tab_transition"
         ) { tab ->
             screens[tab]?.invoke()
+        }
+    }
+}
+
+@Composable
+private fun FloatingTabBar(
+    selectedTab: Tab,
+    onTabSelected: (Tab) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF141414))
+            .border(1.dp, Color(0xFF2C2C2E), RoundedCornerShape(24.dp))
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Tab.entries.forEach { tab ->
+                val isSelected = selectedTab == tab
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .clickable { onTabSelected(tab) }
+                        .padding(
+                            horizontal = if (isSelected) 16.dp else 12.dp,
+                            vertical = 10.dp
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            tab.icon,
+                            contentDescription = stringResource(tab.titleRes),
+                            modifier = Modifier.size(20.dp),
+                            tint = if (isSelected) Color.Black else Color(0xFF8E8E93)
+                        )
+                        AnimatedVisibility(
+                            visible = isSelected,
+                            enter = fadeIn(tween(200)),
+                            exit = fadeOut(tween(150))
+                        ) {
+                            Text(
+                                text = stringResource(tab.titleRes),
+                                color = Color.Black,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

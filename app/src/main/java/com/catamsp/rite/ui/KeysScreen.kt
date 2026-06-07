@@ -3,6 +3,7 @@ package com.catamsp.rite.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.RiteApp
 import com.catamsp.rite.model.ProviderType
 import com.catamsp.rite.ui.components.ScreenTitle
+import com.catamsp.rite.ui.theme.OutlineDim
 import com.catamsp.rite.ui.theme.SurfaceTertiary
 import com.catamsp.rite.viewmodel.KeysViewModel
 import com.catamsp.rite.viewmodel.SettingsViewModel
@@ -44,6 +46,7 @@ fun KeysScreen(
 
     val keysState by viewModel.state.collectAsStateWithLifecycle()
     val keys = keysState.keys
+    val keyStatuses = keysState.keyStatuses
     val isLoading = keysState.isLoading
     val isKeystoreAvailable = keysState.isKeystoreAvailable
 
@@ -61,6 +64,8 @@ fun KeysScreen(
             .padding(top = 24.dp)
     ) {
         ScreenTitle("API Keys")
+
+        KeyCountSummary(keyCount = keys.size)
 
         if (!isKeystoreAvailable) {
             SecurityWarningCard()
@@ -141,8 +146,11 @@ fun KeysScreen(
                 }
             }
             items(keys, key = { it }) { key ->
+                val status = keyStatuses.find { it.maskedKey == key }
                 KeyItem(
                     maskedKey = key,
+                    isReady = status?.isReady ?: true,
+                    remainingMs = status?.remainingMs,
                     onDelete = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         keyToDelete = key
@@ -271,7 +279,36 @@ private fun EmptyKeyState() {
 }
 
 @Composable
-private fun KeyItem(maskedKey: String, onDelete: () -> Unit) {
+private fun KeyCountSummary(keyCount: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = when (keyCount) {
+                    0 -> "No API Keys"
+                    1 -> "1 API Key"
+                    else -> "$keyCount API Keys"
+                },
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = if (keyCount == 0) "Add a key below to get started" else "Add more keys for failover",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+}
+
+@Composable
+private fun KeyItem(maskedKey: String, isReady: Boolean, remainingMs: Long?, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -282,12 +319,31 @@ private fun KeyItem(maskedKey: String, onDelete: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + maskedKey.takeLast(6),
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(
+                            if (isReady) MaterialTheme.colorScheme.onSurface else OutlineDim,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" + maskedKey.takeLast(6),
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = if (isReady) "Active" else "Rate limited (${((remainingMs ?: 0L) / 1000L) + 1}s)",
+                fontSize = 12.sp,
+                color = if (isReady) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp)
             )
             IconButton(onClick = onDelete) {
                 Icon(
