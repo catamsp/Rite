@@ -59,7 +59,7 @@ class AssistantService : AccessibilityService() {
         super.onServiceConnected()
         keyManager = KeyManager(applicationContext)
         commandManager = CommandManager(applicationContext)
-        toastManager = OverlayToastManager(applicationContext, handler)
+        toastManager = OverlayToastManager(this, handler)
         textHelper = TextHelper(applicationContext, serviceScope, handler)
         localCommandExecutor = LocalCommandExecutor(
             textHelper = textHelper,
@@ -202,7 +202,7 @@ class AssistantService : AccessibilityService() {
                 } catch (e: SecurityException) {
                     toastManager.show("Phone permission denied. Go to Settings → Apps → Rite → Permissions → Phone → Allow")
                 } catch (e: Exception) {
-                    if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "Intent launch failed: ${e.message}")
+                    Log.e("Rite", "Intent launch failed: ${e.message}")
                     toastManager.show("Could not launch: ${e.message}")
                 } finally {
                     withContext(NonCancellable + Dispatchers.Main) {
@@ -250,6 +250,7 @@ class AssistantService : AccessibilityService() {
                 System.currentTimeMillis() - disabledAt > 86_400_000L
             }
 
+            toastManager.show("Using $providerType / $model")
             if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: provider=$providerType model=$model keys=${keyManager.getKeys().size} structuredOutput=$useStructuredOutput")
 
             var spinnerJob: Job? = null
@@ -291,7 +292,7 @@ class AssistantService : AccessibilityService() {
 
                         val msg = result.exceptionOrNull()?.message ?: ""
                         lastErrorMsg = msg
-                        if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "AI command: FAILED attempt ${attempt + 1} error='$msg'")
+                        Log.e("Rite", "AI command: FAILED attempt ${attempt + 1} error='$msg'")
                         val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
                         val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
 
@@ -342,7 +343,7 @@ class AssistantService : AccessibilityService() {
                 throw e
             } catch (e: Exception) {
                 spinnerJob?.cancel()
-                if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "AI command: EXCEPTION", e)
+                Log.e("Rite", "AI command: EXCEPTION", e)
                 try { textHelper.replaceText(source, originalText) } catch (_: Exception) {
                     toastManager.show("Could not restore original text")
                 }
@@ -394,7 +395,7 @@ class AssistantService : AccessibilityService() {
                     if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: getting root window")
                     val root = getRootInActiveWindow()
                     if (root == null) {
-                        if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: root is null")
+                        Log.e("Rite", "CtxAware: root is null")
                         withContext(Dispatchers.Main) {
                             textHelper.replaceText(source, "")
                             toastManager.show("Could not read screen content")
@@ -428,7 +429,7 @@ class AssistantService : AccessibilityService() {
                     }
                     ctx
                 } catch (e: Exception) {
-                    if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: screen context FAILED", e)
+                    Log.e("Rite", "CtxAware: screen context FAILED", e)
                     withContext(Dispatchers.Main) {
                         textHelper.replaceText(source, "")
                         toastManager.show("Failed to read screen: ${e.message}")
@@ -470,6 +471,7 @@ class AssistantService : AccessibilityService() {
                 } else ""
                 val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation.$instructionPart Return ONLY the reply text with no explanations or commentary."
 
+                toastManager.show("Using $providerType / $model")
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI provider=$providerType model=$model keys=${keyManager.getKeys().size}")
 
                 // Step 5: Call AI with prompt + screen context
@@ -506,7 +508,7 @@ class AssistantService : AccessibilityService() {
 
                     val msg = result.exceptionOrNull()?.message ?: ""
                     lastErrorMsg = msg
-                    if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} error='$msg'")
+                    Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} error='$msg'")
                     val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
                     val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
 
@@ -553,7 +555,7 @@ class AssistantService : AccessibilityService() {
             throw e
         } catch (e: Exception) {
             spinnerJob?.cancel()
-            if (ENABLE_DEBUG_LOGGING) Log.e("Rite", "CtxAware: EXCEPTION", e)
+            Log.e("Rite", "CtxAware: EXCEPTION", e)
             val ctxSource = inputField ?: source
             withContext(Dispatchers.Main) {
                 textHelper.replaceText(ctxSource, "")
