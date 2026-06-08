@@ -1,5 +1,9 @@
 ﻿package com.catamsp.rite.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,10 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.catamsp.rite.model.ProviderType
@@ -34,6 +40,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val triggerPrefix = settingsState.triggerPrefix
     val temperature = settingsState.temperature
     val screenContextEnabled = settingsState.screenContextEnabled
+    val callsEnabled = settingsState.callsEnabled
+
+    val context = LocalContext.current
+    val callPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        viewModel.updateCallsEnabled(granted)
+    }
 
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
@@ -144,7 +158,29 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             )
         }
 
-        item(key = "spacer5") { Spacer(modifier = Modifier.height(8.dp))         }
+        item(key = "spacer5") { Spacer(modifier = Modifier.height(8.dp)) }
+
+        item(key = "phoneCalls") {
+            PhoneCallsSection(
+                enabled = callsEnabled,
+                onToggle = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    if (!callsEnabled) {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
+                            == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            viewModel.updateCallsEnabled(true)
+                        } else {
+                            callPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
+                        }
+                    } else {
+                        viewModel.updateCallsEnabled(false)
+                    }
+                }
+            )
+        }
+
+        item(key = "spacer6") { Spacer(modifier = Modifier.height(8.dp))         }
 
     }
 }
@@ -290,7 +326,19 @@ private fun CustomModelSection(model: String, onModelChange: (String) -> Unit) {
 @Composable
 private fun CreativitySection(temperature: Float, onCreativityChange: (Float) -> Unit) {
     SettingsCard {
-        SettingsLabel("Creativity")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsLabel("Creativity")
+            Text(
+                text = String.format("%.1f", temperature),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Lower = focused, predictable · Higher = creative, varied",
@@ -331,6 +379,36 @@ private fun ScreenContextSection(enabled: Boolean, onToggle: () -> Unit) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "Allow ?freply and ?qreply to read screen text",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = { onToggle() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PhoneCallsSection(enabled: Boolean, onToggle: () -> Unit) {
+    SettingsCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Phone Calls",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Allow ?call and ?tel: to make phone calls",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

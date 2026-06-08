@@ -1,11 +1,9 @@
 ﻿package com.catamsp.rite
 
-import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -79,16 +77,6 @@ import com.catamsp.rite.viewmodel.SettingsViewModel
 
 class MainActivity : ComponentActivity() {
 
-    private val callPhoneLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = Uri.fromParts("package", packageName, null)
-            })
-        }
-    }
-
     private val accessibilityPermLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
@@ -100,12 +88,6 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
-        }
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            callPhoneLauncher.launch(Manifest.permission.CALL_PHONE)
         }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

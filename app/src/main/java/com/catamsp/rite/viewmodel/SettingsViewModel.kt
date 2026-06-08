@@ -25,7 +25,8 @@ data class SettingsState(
     val customModel: String = "",
     val triggerPrefix: String = "?",
     val temperature: Float = 0.5f,
-    val screenContextEnabled: Boolean = false
+    val screenContextEnabled: Boolean = false,
+    val callsEnabled: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -40,7 +41,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         customModel = prefs.getString("custom_model", "") ?: "",
         triggerPrefix = commandManager.getTriggerPrefix(),
         temperature = prefs.getFloat("temperature", 0.5f),
-        screenContextEnabled = prefs.getBoolean("screen_context_enabled", false)
+        screenContextEnabled = prefs.getBoolean("screen_context_enabled", false),
+        callsEnabled = prefs.getBoolean("calls_enabled", false)
     ))
     val state: StateFlow<SettingsState> = _state.asStateFlow()
 
@@ -120,6 +122,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _state.value = _state.value.copy(screenContextEnabled = newValue)
         viewModelScope.launch(Dispatchers.IO) {
             prefs.edit().putBoolean("screen_context_enabled", newValue).apply()
+        }
+    }
+
+    fun updateCallsEnabled(enabled: Boolean) {
+        _state.value = _state.value.copy(callsEnabled = enabled)
+        viewModelScope.launch(Dispatchers.IO) {
+            prefs.edit().putBoolean("calls_enabled", enabled).apply()
         }
     }
 }

@@ -179,6 +179,22 @@ class AssistantService : AccessibilityService() {
         if (!isIntent && (cleanText.isEmpty() || source.isPassword)) return
         if (isIntent && source.isPassword) return
 
+        if (isIntent && command.prompt.trimStart().startsWith("tel:")) {
+            val callsEnabled = applicationContext
+                .getSharedPreferences("settings", Context.MODE_PRIVATE)
+                .getBoolean("calls_enabled", false)
+            if (!callsEnabled) {
+                serviceScope.launch {
+                    withContext(Dispatchers.Main) {
+                        textHelper.replaceText(source, "")
+                        toastManager.show("Enable Phone Calls in Rite Settings")
+                    }
+                    isProcessing.set(false)
+                }
+                return
+            }
+        }
+
         if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "processTextChange: routing to AI command '${command.trigger}' text='${cleanText.take(30)}'")
         isProcessing.set(true)
         startWatchdog()
