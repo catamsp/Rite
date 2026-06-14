@@ -50,13 +50,6 @@ object ApiClientUtils {
         } ?: ""
     }
 
-    fun isTransientNetwork(errorMsg: String): Boolean {
-        val lower = errorMsg.lowercase()
-        return lower.contains("timeout") || lower.contains("timed out") ||
-            lower.contains("connection reset") || lower.contains("broken pipe") ||
-            lower.contains("econnreset") || lower.contains("econnrefused")
-    }
-
     fun extractHttpCode(errorMsg: String): Int? {
         return HTTP_CODE_REGEX.find(errorMsg)?.groupValues?.get(1)?.toIntOrNull()
     }

@@ -6,7 +6,6 @@ import java.util.concurrent.atomic.AtomicInteger
 class ApiKeySelector {
 
     private val rateLimitedKeys = mutableMapOf<String, Long>()
-    private val invalidKeys = mutableSetOf<String>()
     private val roundRobinIndex = AtomicInteger(0)
 
     fun reportRateLimit(key: String, retryAfterSeconds: Long = 60) {
@@ -14,20 +13,11 @@ class ApiKeySelector {
         rateLimitedKeys[key] = System.currentTimeMillis() + cooldown * 1_000
     }
 
-    fun markInvalid(key: String) {
-        invalidKeys.add(key)
-    }
-
-    fun clearInvalid(key: String) {
-        invalidKeys.remove(key)
-    }
-
     fun getNextKey(keys: List<String>): String? {
         if (keys.isEmpty()) return null
 
         val now = System.currentTimeMillis()
         val validKeys = keys.filter { key ->
-            if (invalidKeys.contains(key)) return@filter false
             val limitTime = rateLimitedKeys[key] ?: 0L
             now > limitTime
         }
@@ -38,15 +28,23 @@ class ApiKeySelector {
         return validKeys[idx]
     }
 
+    fun getKeysForProvider(keys: List<String>, provider: String): List<String> {
+        return keys.filter { detectProvider(it) == provider }
+    }
+
+    fun getNextKeyForProvider(keys: List<String>, provider: String): String? {
+        val providerKeys = getKeysForProvider(keys, provider)
+        return getNextKey(providerKeys)
+    }
+
     fun getShortestWaitTimeMs(keys: List<String>): Long? {
         if (keys.isEmpty()) return null
         val now = System.currentTimeMillis()
-        val waits = keys.filter { !invalidKeys.contains(it) }
-            .mapNotNull { key ->
-                val limitTime = rateLimitedKeys[key] ?: return@mapNotNull null
-                val remaining = limitTime - now
-                if (remaining > 0) remaining else null
-            }
+        val waits = keys.mapNotNull { key ->
+            val limitTime = rateLimitedKeys[key] ?: return@mapNotNull null
+            val remaining = limitTime - now
+            if (remaining > 0) remaining else null
+        }
         return waits.minOrNull()
     }
 
@@ -57,7 +55,7 @@ class ApiKeySelector {
             val remaining = if (limitTime > now) limitTime - now else 0L
             KeyStatus(
                 maskedKey = key,
-                isReady = limitTime <= now && !invalidKeys.contains(key),
+                isReady = limitTime <= now,
                 remainingMs = if (limitTime > now) remaining else null
             )
         }
@@ -65,8 +63,19 @@ class ApiKeySelector {
 
     fun reset() {
         rateLimitedKeys.clear()
-        invalidKeys.clear()
         roundRobinIndex.set(0)
+    }
+
+    companion object {
+        fun detectProvider(key: String): String {
+            return when {
+                key.startsWith("AIza") -> "gemini"
+                key.startsWith("gsk_") -> "groq"
+                key.startsWith("csk-") -> "cerebras"
+                key.startsWith("kilo_") || (key.startsWith("eyJ") && key.contains(".")) -> "kilo"
+                else -> "custom"
+            }
+        }
     }
 
     @Immutable

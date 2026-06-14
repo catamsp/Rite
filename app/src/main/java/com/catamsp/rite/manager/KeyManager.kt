@@ -150,7 +150,6 @@ class KeyManager(context: Context) {
             keys.add(key)
             saveKeys(keys)
         }
-        selector.clearInvalid(key)
         return Result.success(Unit)
     }
 
@@ -158,7 +157,6 @@ class KeyManager(context: Context) {
         val keys = getKeys().toMutableList()
         keys.remove(key)
         saveKeys(keys)
-        selector.markInvalid(key)
     }
 
     fun getNextKey(): String? = selector.getNextKey(getKeys())
@@ -166,7 +164,9 @@ class KeyManager(context: Context) {
     fun reportRateLimit(key: String, retryAfterSeconds: Long = 60) =
         selector.reportRateLimit(key, retryAfterSeconds)
 
-    fun markInvalid(key: String) = selector.markInvalid(key)
+    fun getKeysForProvider(provider: String): List<String> = selector.getKeysForProvider(getKeys(), provider)
+
+    fun getNextKeyForProvider(provider: String): String? = selector.getNextKeyForProvider(getKeys(), provider)
 
     fun getShortestWaitTimeMs(): Long? = selector.getShortestWaitTimeMs(getKeys())
 

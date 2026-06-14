@@ -15,6 +15,7 @@ import com.catamsp.rite.manager.CommandManager
 import com.catamsp.rite.manager.KeyManager
 import com.catamsp.rite.model.Command
 import com.catamsp.rite.model.ProviderType
+import com.catamsp.rite.viewmodel.FallbackRow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 class AssistantService : AccessibilityService() {
@@ -231,94 +234,93 @@ class AssistantService : AccessibilityService() {
         }
 
         val mode = getCommandMode(command.trigger)
-        val cmdName = extractCmdName(command.trigger, commandManager.getTriggerPrefix())
 
         currentJob = serviceScope.launch {
             val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-            val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
             val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
-            val model: String
-            val endpoint: String
+            val fallbackRows = loadFallbackRows(prefs)
 
-            when (providerType) {
-                ProviderType.CUSTOM -> {
-                    model = prefs.getString("custom_model", "") ?: ""
-                    endpoint = prefs.getString("custom_endpoint", "") ?: ""
-                    if (model.isBlank() || endpoint.isBlank()) {
-                        withContext(Dispatchers.Main) { toastManager.show("Custom provider not configured. Set endpoint and model in Settings.") }
-                        isProcessing.set(false)
-                        return@launch
-                    }
+            if (fallbackRows.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    toastManager.show("No providers configured. Add a fallback row in Settings.")
+                    isProcessing.set(false)
                 }
-                ProviderType.GROQ -> {
-                    model = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"
-                    endpoint = "https://api.groq.com/openai/v1"
-                }
-                else -> {
-                    model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
-                    endpoint = ""
-                }
+                return@launch
             }
 
-            val originalText = text
             val useStructuredOutput = run {
                 val disabledAt = prefs.getLong("structured_output_disabled_at", 0L)
                 System.currentTimeMillis() - disabledAt > 86_400_000L
             }
 
-            toastManager.show("Using $providerType / $model")
-            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: provider=$providerType model=$model keys=${keyManager.getKeys().size} structuredOutput=$useStructuredOutput")
-
+            val originalText = text
             var spinnerJob: Job? = null
+            var lastErrorMsg: String? = null
+
             try {
                 withTimeout(AI_COMMAND_TIMEOUT_MS) {
-                    val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
-                    var lastErrorMsg: String? = null
                     var succeeded = false
 
-                    for (attempt in 0 until maxAttempts) {
-                        val key = keyManager.getNextKey() ?: break
+                    for (row in fallbackRows) {
+                        if (succeeded) break
 
-                        if (spinnerJob == null) {
-                            spinnerJob = textHelper.startInlineSpinner(source, originalText)
+                        val keys = keyManager.getKeysForProvider(row.provider)
+                        if (keys.isEmpty()) {
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: no keys for provider=${row.provider}, skipping row")
+                            continue
                         }
 
-                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: attempt ${attempt + 1}/$maxAttempts")
+                        val model = row.model
+                        val endpoint = resolveEndpoint(row.provider, prefs)
 
-                        val result = when (providerType) {
-                            ProviderType.GROQ -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint, useStructuredOutput, useStructuredOutput)
-                            ProviderType.CUSTOM -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint, useStructuredOutput, false)
-                            else -> client.generate(command.prompt, text, key, model, temperature, useStructuredOutput)
+                        if (row.provider == ProviderType.CUSTOM && endpoint.isBlank()) {
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: custom provider not configured, skipping row")
+                            continue
                         }
 
-                        if (result.isSuccess) {
-                            val generateResult = result.getOrThrow()
-                            spinnerJob!!.cancel()
-                            spinnerJob = null
-                            lastOriginalText = originalText
-                            textHelper.replaceText(source, applyMode(originalText, generateResult.text, mode))
-                            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                            if (generateResult.structuredOutputFailed) {
-                                prefs.edit().putLong("structured_output_disabled_at", System.currentTimeMillis()).apply()
+                        toastManager.show("Trying ${ProviderType.label(row.provider)} / $model")
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: row provider=${row.provider} model=$model keys=${keys.size}")
+
+                        for (attempt in keys.indices) {
+                            val key = keyManager.getNextKeyForProvider(row.provider) ?: break
+
+                            if (spinnerJob == null) {
+                                spinnerJob = textHelper.startInlineSpinner(source, originalText)
                             }
-                            succeeded = true
-                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: SUCCESS result='${generateResult.text.take(50)}'")
-                            break
-                        }
 
-                        val msg = result.exceptionOrNull()?.message ?: ""
-                        lastErrorMsg = msg
-                        Log.e("Rite", "AI command: FAILED attempt ${attempt + 1} error='$msg'")
-                        val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
-                        val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: attempt ${attempt + 1}/${keys.size} provider=${row.provider}")
 
-                        when {
-                            isRateLimit -> {
+                            val result = when (row.provider) {
+                                ProviderType.GEMINI -> client.generate(command.prompt, text, key, model, temperature, useStructuredOutput)
+                                else -> openAIClient.generate(command.prompt, text, key, model, temperature, endpoint, useStructuredOutput, row.provider == ProviderType.GROQ)
+                            }
+
+                            if (result.isSuccess) {
+                                val generateResult = result.getOrThrow()
+                                spinnerJob!!.cancel()
+                                spinnerJob = null
+                                lastOriginalText = originalText
+                                textHelper.replaceText(source, applyMode(originalText, generateResult.text, mode))
+                                performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                if (generateResult.structuredOutputFailed) {
+                                    prefs.edit().putLong("structured_output_disabled_at", System.currentTimeMillis()).apply()
+                                }
+                                succeeded = true
+                                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: SUCCESS via ${row.provider} result='${generateResult.text.take(50)}'")
+                                break
+                            }
+
+                            val msg = result.exceptionOrNull()?.message ?: ""
+                            lastErrorMsg = msg
+                            Log.e("Rite", "AI command: FAILED attempt ${attempt + 1} provider=${row.provider} error='$msg'")
+                            val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
+
+                            if (isRateLimit) {
                                 val seconds = Regex("retry after (\\d+)s").find(msg)?.groupValues?.get(1)?.toLongOrNull() ?: 60
                                 keyManager.reportRateLimit(key, seconds)
+                            } else {
+                                break
                             }
-                            isInvalidKey -> keyManager.markInvalid(key)
-                            else -> break
                         }
                     }
 
@@ -335,7 +337,7 @@ class AssistantService : AccessibilityService() {
                             when {
                                 waitMs != null -> {
                                     val waitSec = ((waitMs + 999) / 1000).coerceAtLeast(1)
-                                    val msg = "Rate limited. Try again in ${waitSec}s or switch model in Settings"
+                                    val msg = "Rate limited. Try again in ${waitSec}s or add more providers in Settings"
                                     if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: '$msg'")
                                     toastManager.show(msg)
                                 }
@@ -344,8 +346,8 @@ class AssistantService : AccessibilityService() {
                                     toastManager.show("No API keys. Add one in Settings → API Keys")
                                 }
                                 else -> {
-                                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: Invalid key")
-                                    toastManager.show("API key invalid. Check Settings → API Keys")
+                                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "AI command: showing toast: All providers exhausted")
+                                    toastManager.show("All providers exhausted. Check your keys in Settings → API Keys")
                                 }
                             }
                         }
@@ -386,13 +388,11 @@ class AssistantService : AccessibilityService() {
             withTimeout(AI_COMMAND_TIMEOUT_MS) {
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: starting${if (isScreenshotCommand) " (screenshot)" else ""}, closing keyboard")
 
-                // Step 1: Close keyboard
                 performGlobalAction(GLOBAL_ACTION_BACK)
                 delay(KEYBOARD_DISMISS_DELAY_MS)
 
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: keyboard closed, reading prefs")
 
-                // Step 2: Check screen context toggle
                 val screenContextEnabled = applicationContext
                     .getSharedPreferences("settings", Context.MODE_PRIVATE)
                     .getBoolean("screen_context_enabled", false)
@@ -407,7 +407,6 @@ class AssistantService : AccessibilityService() {
                     return@withTimeout
                 }
 
-                // Step 3: Re-acquire input field after keyboard close
                 val root = try {
                     getRootInActiveWindow()
                 } catch (e: Exception) {
@@ -423,7 +422,6 @@ class AssistantService : AccessibilityService() {
 
                 val ctxSource = inputField ?: source
 
-                // Step 4a: Screenshot mode — capture screenshot and send as image
                 if (isScreenshotCommand) {
                     if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
                         root?.recycle()
@@ -449,33 +447,16 @@ class AssistantService : AccessibilityService() {
                     root?.recycle()
                     if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: screenshot captured ${screenshotResult.width}x${screenshotResult.height}")
 
-                    // Step 5a: Read provider settings
                     val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-                    val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
                     val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
-                    val model: String
-                    val endpoint: String
+                    val fallbackRows = loadFallbackRows(prefs)
 
-                    when (providerType) {
-                        ProviderType.CUSTOM -> {
-                            model = prefs.getString("custom_model", "") ?: ""
-                            endpoint = prefs.getString("custom_endpoint", "") ?: ""
-                            if (model.isBlank() || endpoint.isBlank()) {
-                                withContext(Dispatchers.Main) {
-                                    textHelper.replaceText(ctxSource, "")
-                                    toastManager.show("Custom provider not configured in Settings")
-                                }
-                                return@withTimeout
-                            }
+                    if (fallbackRows.isEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            textHelper.replaceText(ctxSource, "")
+                            toastManager.show("No providers configured in Settings")
                         }
-                        ProviderType.GROQ -> {
-                            model = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"
-                            endpoint = "https://api.groq.com/openai/v1"
-                        }
-                        else -> {
-                            model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
-                            endpoint = ""
-                        }
+                        return@withTimeout
                     }
 
                     val instructionPart = if (userInstruction.isNotBlank()) {
@@ -483,53 +464,61 @@ class AssistantService : AccessibilityService() {
                     } else ""
                     val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a screenshot from the user's screen showing a conversation. Generate a natural, conversational reply to the conversation visible in the screenshot.$instructionPart Return ONLY the reply text with no explanations or commentary."
 
-                    toastManager.show("Using $providerType / $model")
-                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI (screenshot) provider=$providerType model=$model keys=${keyManager.getKeys().size}")
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI (screenshot) with ${fallbackRows.size} fallback rows")
 
-                    // Step 6a: Call AI with screenshot
-                    val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
                     var lastErrorMsg: String? = null
                     var succeeded = false
 
-                    for (attempt in 0 until maxAttempts) {
-                        val key = keyManager.getNextKey() ?: break
+                    for (row in fallbackRows) {
+                        if (succeeded) break
 
-                        if (spinnerJob == null) {
-                            spinnerJob = textHelper.startInlineSpinner(ctxSource, "")
-                        }
+                        val keys = keyManager.getKeysForProvider(row.provider)
+                        if (keys.isEmpty()) continue
 
-                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: attempt ${attempt + 1}/$maxAttempts")
+                        val model = row.model
+                        val endpoint = resolveEndpoint(row.provider, prefs)
 
-                        val result = when (providerType) {
-                            ProviderType.GROQ -> openAIClient.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, endpoint, contextAwareSystemPrompt)
-                            ProviderType.CUSTOM -> openAIClient.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, endpoint, contextAwareSystemPrompt)
-                            else -> client.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, contextAwareSystemPrompt)
-                        }
+                        if (row.provider == ProviderType.CUSTOM && endpoint.isBlank()) continue
 
-                        if (result.isSuccess) {
-                            val generateResult = result.getOrThrow()
-                            spinnerJob!!.cancel()
-                            spinnerJob = null
-                            textHelper.replaceText(ctxSource, generateResult.text)
-                            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                            succeeded = true
-                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: SUCCESS '${generateResult.text.take(50)}'")
-                            break
-                        }
+                        toastManager.show("Trying ${ProviderType.label(row.provider)} / $model")
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: row provider=${row.provider} model=$model keys=${keys.size}")
 
-                        val msg = result.exceptionOrNull()?.message ?: ""
-                        lastErrorMsg = msg
-                        Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} error='$msg'")
-                        val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
-                        val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
+                        for (attempt in keys.indices) {
+                            val key = keyManager.getNextKeyForProvider(row.provider) ?: break
 
-                        when {
-                            isRateLimit -> {
+                            if (spinnerJob == null) {
+                                spinnerJob = textHelper.startInlineSpinner(ctxSource, "")
+                            }
+
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: attempt ${attempt + 1}/${keys.size} provider=${row.provider}")
+
+                            val result = when (row.provider) {
+                                ProviderType.GEMINI -> client.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, contextAwareSystemPrompt)
+                                else -> openAIClient.generateWithImage(command.prompt, screenshotResult.base64Jpeg, key, model, temperature, endpoint, contextAwareSystemPrompt)
+                            }
+
+                            if (result.isSuccess) {
+                                val generateResult = result.getOrThrow()
+                                spinnerJob!!.cancel()
+                                spinnerJob = null
+                                textHelper.replaceText(ctxSource, generateResult.text)
+                                performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                succeeded = true
+                                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: SUCCESS via ${row.provider} '${generateResult.text.take(50)}'")
+                                break
+                            }
+
+                            val msg = result.exceptionOrNull()?.message ?: ""
+                            lastErrorMsg = msg
+                            Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} provider=${row.provider} error='$msg'")
+                            val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
+
+                            if (isRateLimit) {
                                 val seconds = Regex("retry after (\\d+)s").find(msg)?.groupValues?.get(1)?.toLongOrNull() ?: 60
                                 keyManager.reportRateLimit(key, seconds)
+                            } else {
+                                break
                             }
-                            isInvalidKey -> keyManager.markInvalid(key)
-                            else -> break
                         }
                     }
 
@@ -546,17 +535,16 @@ class AssistantService : AccessibilityService() {
                             when {
                                 waitMs != null -> {
                                     val waitSec = ((waitMs + 999) / 1000).coerceAtLeast(1)
-                                    toastManager.show("API rate limited. Try again in ${waitSec}s or switch provider in Settings")
+                                    toastManager.show("API rate limited. Try again in ${waitSec}s or add more providers in Settings")
                                 }
                                 keyManager.getKeys().isEmpty() -> toastManager.show("No API keys configured. Add one in Settings")
-                                else -> toastManager.show("API key invalid. Check Settings → API Keys")
+                                else -> toastManager.show("All providers exhausted. Check your keys in Settings")
                             }
                         }
                     }
                     return@withTimeout
                 }
 
-                // Step 4b: Text mode — collect screen text (freply/qreply)
                 val screenContext: String = try {
                     if (root == null) {
                         Log.e("Rite", "CtxAware: root is null")
@@ -593,33 +581,16 @@ class AssistantService : AccessibilityService() {
                     return@withTimeout
                 }
 
-                // Step 5b: Read provider settings
                 val prefs = applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-                val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
                 val temperature = prefs.getFloat("temperature", 0.5f).toDouble()
-                val model: String
-                val endpoint: String
+                val fallbackRows = loadFallbackRows(prefs)
 
-                when (providerType) {
-                    ProviderType.CUSTOM -> {
-                        model = prefs.getString("custom_model", "") ?: ""
-                        endpoint = prefs.getString("custom_endpoint", "") ?: ""
-                        if (model.isBlank() || endpoint.isBlank()) {
-                            withContext(Dispatchers.Main) {
-                                textHelper.replaceText(source, "")
-                                toastManager.show("Custom provider not configured in Settings")
-                            }
-                            return@withTimeout
-                        }
+                if (fallbackRows.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        textHelper.replaceText(source, "")
+                        toastManager.show("No providers configured in Settings")
                     }
-                    ProviderType.GROQ -> {
-                        model = prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"
-                        endpoint = "https://api.groq.com/openai/v1"
-                    }
-                    else -> {
-                        model = prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"
-                        endpoint = ""
-                    }
+                    return@withTimeout
                 }
 
                 val instructionPart = if (userInstruction.isNotBlank()) {
@@ -627,53 +598,61 @@ class AssistantService : AccessibilityService() {
                 } else ""
                 val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation.$instructionPart Return ONLY the reply text with no explanations or commentary."
 
-                toastManager.show("Using $providerType / $model")
-                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI provider=$providerType model=$model keys=${keyManager.getKeys().size}")
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI with ${fallbackRows.size} fallback rows")
 
-                // Step 6b: Call AI with prompt + screen context
-                val maxAttempts = keyManager.getKeys().size.coerceAtLeast(1)
                 var lastErrorMsg: String? = null
                 var succeeded = false
 
-                for (attempt in 0 until maxAttempts) {
-                    val key = keyManager.getNextKey() ?: break
+                for (row in fallbackRows) {
+                    if (succeeded) break
 
-                    if (spinnerJob == null) {
-                        spinnerJob = textHelper.startInlineSpinner(ctxSource, "")
-                    }
+                    val keys = keyManager.getKeysForProvider(row.provider)
+                    if (keys.isEmpty()) continue
 
-                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: attempt ${attempt + 1}/$maxAttempts")
+                    val model = row.model
+                    val endpoint = resolveEndpoint(row.provider, prefs)
 
-                    val result = when (providerType) {
-                        ProviderType.GROQ -> openAIClient.generate(command.prompt, "", key, model, temperature, endpoint, false, false, screenContext, contextAwareSystemPrompt)
-                        ProviderType.CUSTOM -> openAIClient.generate(command.prompt, "", key, model, temperature, endpoint, false, false, screenContext, contextAwareSystemPrompt)
-                        else -> client.generate(command.prompt, "", key, model, temperature, false, screenContext, contextAwareSystemPrompt)
-                    }
+                    if (row.provider == ProviderType.CUSTOM && endpoint.isBlank()) continue
 
-                    if (result.isSuccess) {
-                        val generateResult = result.getOrThrow()
-                        spinnerJob!!.cancel()
-                        spinnerJob = null
-                        textHelper.replaceText(ctxSource, generateResult.text)
-                        performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                        succeeded = true
-                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: SUCCESS '${generateResult.text.take(50)}'")
-                        break
-                    }
+                    toastManager.show("Trying ${ProviderType.label(row.provider)} / $model")
+                    if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: row provider=${row.provider} model=$model keys=${keys.size}")
 
-                    val msg = result.exceptionOrNull()?.message ?: ""
-                    lastErrorMsg = msg
-                    Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} error='$msg'")
-                    val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
-                    val isInvalidKey = msg.contains("Invalid API key", ignoreCase = true) || msg.contains("API key not valid", ignoreCase = true)
+                    for (attempt in keys.indices) {
+                        val key = keyManager.getNextKeyForProvider(row.provider) ?: break
 
-                    when {
-                        isRateLimit -> {
+                        if (spinnerJob == null) {
+                            spinnerJob = textHelper.startInlineSpinner(ctxSource, "")
+                        }
+
+                        if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: attempt ${attempt + 1}/${keys.size} provider=${row.provider}")
+
+                        val result = when (row.provider) {
+                            ProviderType.GEMINI -> client.generate(command.prompt, "", key, model, temperature, false, screenContext, contextAwareSystemPrompt)
+                            else -> openAIClient.generate(command.prompt, "", key, model, temperature, endpoint, false, false, screenContext, contextAwareSystemPrompt)
+                        }
+
+                        if (result.isSuccess) {
+                            val generateResult = result.getOrThrow()
+                            spinnerJob!!.cancel()
+                            spinnerJob = null
+                            textHelper.replaceText(ctxSource, generateResult.text)
+                            performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                            succeeded = true
+                            if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: SUCCESS via ${row.provider} '${generateResult.text.take(50)}'")
+                            break
+                        }
+
+                        val msg = result.exceptionOrNull()?.message ?: ""
+                        lastErrorMsg = msg
+                        Log.e("Rite", "CtxAware: FAILED attempt ${attempt + 1} provider=${row.provider} error='$msg'")
+                        val isRateLimit = msg.contains("Rate limit") || msg.contains("rate limit")
+
+                        if (isRateLimit) {
                             val seconds = Regex("retry after (\\d+)s").find(msg)?.groupValues?.get(1)?.toLongOrNull() ?: 60
                             keyManager.reportRateLimit(key, seconds)
+                        } else {
+                            break
                         }
-                        isInvalidKey -> keyManager.markInvalid(key)
-                        else -> break
                     }
                 }
 
@@ -690,10 +669,10 @@ class AssistantService : AccessibilityService() {
                         when {
                             waitMs != null -> {
                                 val waitSec = ((waitMs + 999) / 1000).coerceAtLeast(1)
-                                toastManager.show("API rate limited. Try again in ${waitSec}s or switch provider in Settings")
+                                toastManager.show("API rate limited. Try again in ${waitSec}s or add more providers in Settings")
                             }
                             keyManager.getKeys().isEmpty() -> toastManager.show("No API keys configured. Add one in Settings")
-                            else -> toastManager.show("API key invalid. Check Settings → API Keys")
+                            else -> toastManager.show("All providers exhausted. Check your keys in Settings")
                         }
                     }
                 }
@@ -721,6 +700,46 @@ class AssistantService : AccessibilityService() {
                 isProcessing.set(false)
             }
             cancelWatchdog()
+        }
+    }
+
+    private fun loadFallbackRows(prefs: SharedPreferences): List<FallbackRow> {
+        val json = prefs.getString("fallback_rows", null)
+        if (json != null) {
+            try {
+                val arr = JSONArray(json)
+                val rows = mutableListOf<FallbackRow>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    rows.add(FallbackRow(
+                        provider = obj.getString("provider"),
+                        model = obj.getString("model")
+                    ))
+                }
+                if (rows.isNotEmpty()) return rows
+            } catch (_: Exception) {
+            }
+        }
+
+        val providerType = prefs.getString("provider_type", ProviderType.GEMINI) ?: ProviderType.GEMINI
+        return when (providerType) {
+            ProviderType.GROQ -> listOf(FallbackRow(ProviderType.GROQ, prefs.getString("groq_model", "llama-3.3-70b-versatile") ?: "llama-3.3-70b-versatile"))
+            ProviderType.CUSTOM -> {
+                val model = prefs.getString("custom_model", "") ?: ""
+                val endpoint = prefs.getString("custom_endpoint", "") ?: ""
+                if (model.isNotBlank() && endpoint.isNotBlank()) listOf(FallbackRow(ProviderType.CUSTOM, model)) else listOf(FallbackRow(ProviderType.GEMINI, "gemini-2.5-flash-lite"))
+            }
+            else -> listOf(FallbackRow(ProviderType.GEMINI, prefs.getString("model", "gemini-2.5-flash-lite") ?: "gemini-2.5-flash-lite"))
+        }
+    }
+
+    private fun resolveEndpoint(provider: String, prefs: SharedPreferences): String {
+        return when (provider) {
+            ProviderType.GROQ -> "https://api.groq.com/openai/v1"
+            ProviderType.KILO -> "https://api.kilo.ai/api/gateway"
+            ProviderType.CEREBRAS -> "https://api.cerebras.ai/v1"
+            ProviderType.CUSTOM -> prefs.getString("custom_endpoint", "") ?: ""
+            else -> ""
         }
     }
 
@@ -854,9 +873,9 @@ class AssistantService : AccessibilityService() {
             lower.contains("invalid api key") || lower.contains("api key not valid") || lower.contains("api_key_invalid") ->
                 "Invalid API key. Check Settings → API Keys"
             lower.contains("rate limit") || lower.contains("resource_exhausted") || lower.contains("quota") ->
-                "Rate limited. Wait a minute or switch model/provider in Settings"
+                "Rate limited. Wait a minute or try another provider in Settings"
             lower.contains("model not found") || lower.contains("model_not_found") || lower.contains("not found for api version") ->
-                "Model not found. Check Settings → Model"
+                "Model not found. Check Settings → Fallback Order"
             lower.contains("safety") || lower.contains("content_filter") || lower.contains("recitation") ||
                 lower.contains("blocked by safety") || lower.contains("finish_reason: safety") ||
                 lower.contains("failed_generation") ->

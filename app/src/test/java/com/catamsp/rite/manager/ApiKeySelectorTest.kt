@@ -35,30 +35,6 @@ class ApiKeySelectorTest {
         assertNull(selector.getNextKey(keys))
     }
 
-    // ── markInvalid ──────────────────────────────────────────
-    @Test
-    fun markInvalid_keyExcluded() {
-        selector.markInvalid("key1")
-        val keys = listOf("key1")
-        assertNull(selector.getNextKey(keys))
-    }
-
-    @Test
-    fun markInvalid_otherKeysStillAvailable() {
-        selector.markInvalid("key1")
-        val keys = listOf("key1", "key2")
-        assertEquals("key2", selector.getNextKey(keys))
-    }
-
-    // ── clearInvalid ─────────────────────────────────────────
-    @Test
-    fun clearInvalid_keyBecomesAvailable() {
-        selector.markInvalid("key1")
-        selector.clearInvalid("key1")
-        val keys = listOf("key1")
-        assertEquals("key1", selector.getNextKey(keys))
-    }
-
     // ── getNextKey ───────────────────────────────────────────
     @Test
     fun getNextKey_emptyList_returnsNull() {
@@ -87,13 +63,6 @@ class ApiKeySelectorTest {
     fun getNextKey_allRateLimited_returnsNull() {
         selector.reportRateLimit("key1", 60)
         selector.reportRateLimit("key2", 60)
-        assertNull(selector.getNextKey(listOf("key1", "key2")))
-    }
-
-    @Test
-    fun getNextKey_allInvalid_returnsNull() {
-        selector.markInvalid("key1")
-        selector.markInvalid("key2")
         assertNull(selector.getNextKey(listOf("key1", "key2")))
     }
 
@@ -144,21 +113,77 @@ class ApiKeySelectorTest {
         assertNotNull(statuses[0].remainingMs)
     }
 
-    @Test
-    fun getKeyStatuses_invalidKey_notReady() {
-        selector.markInvalid("key1")
-        val statuses = selector.getKeyStatuses(listOf("key1"))
-        assertEquals(1, statuses.size)
-        assertFalse(statuses[0].isReady)
-    }
-
     // ── reset ────────────────────────────────────────────────
     @Test
     fun reset_clearsAll() {
         selector.reportRateLimit("key1", 60)
-        selector.markInvalid("key2")
         selector.reset()
         val keys = listOf("key1", "key2")
         assertEquals("key1", selector.getNextKey(keys))
+    }
+
+    // ── detectProvider ───────────────────────────────────────
+    @Test
+    fun detectProvider_geminiKey() {
+        assertEquals("gemini", ApiKeySelector.detectProvider("AIzaSytest123"))
+    }
+
+    @Test
+    fun detectProvider_groqKey() {
+        assertEquals("groq", ApiKeySelector.detectProvider("gsk_test123"))
+    }
+
+    @Test
+    fun detectProvider_cerebrasKey() {
+        assertEquals("cerebras", ApiKeySelector.detectProvider("csk-test123"))
+    }
+
+    @Test
+    fun detectProvider_kiloKey() {
+        assertEquals("kilo", ApiKeySelector.detectProvider("kilo_test123"))
+    }
+
+    @Test
+    fun detectProvider_kiloJwtKey() {
+        assertEquals("kilo", ApiKeySelector.detectProvider("eyJhbGciOiJIUzI1NiJ9.test"))
+    }
+
+    @Test
+    fun detectProvider_unknownKey() {
+        assertEquals("custom", ApiKeySelector.detectProvider("sk-test123"))
+    }
+
+    // ── getKeysForProvider ───────────────────────────────────
+    @Test
+    fun getKeysForProvider_filtersCorrectly() {
+        val keys = listOf("AIzaSy123", "gsk_456", "csk-789", "AIzaSy000")
+        val geminiKeys = selector.getKeysForProvider(keys, "gemini")
+        val groqKeys = selector.getKeysForProvider(keys, "groq")
+        val cerebrasKeys = selector.getKeysForProvider(keys, "cerebras")
+        assertEquals(2, geminiKeys.size)
+        assertEquals(1, groqKeys.size)
+        assertEquals(1, cerebrasKeys.size)
+    }
+
+    @Test
+    fun getKeysForProvider_noMatch_returnsEmpty() {
+        val keys = listOf("AIzaSy123")
+        val groqKeys = selector.getKeysForProvider(keys, "groq")
+        assertTrue(groqKeys.isEmpty())
+    }
+
+    @Test
+    fun getNextKeyForProvider_returnsCorrectKey() {
+        val keys = listOf("AIzaSy123", "gsk_456")
+        val geminiKey = selector.getNextKeyForProvider(keys, "gemini")
+        assertEquals("AIzaSy123", geminiKey)
+    }
+
+    @Test
+    fun getNextKeyForProvider_allRateLimited_returnsNull() {
+        val keys = listOf("AIzaSy123", "AIzaSy456")
+        selector.reportRateLimit("AIzaSy123", 60)
+        selector.reportRateLimit("AIzaSy456", 60)
+        assertNull(selector.getNextKeyForProvider(keys, "gemini"))
     }
 }

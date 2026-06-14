@@ -51,6 +51,48 @@ class GeminiClient {
         }
     }
 
+    suspend fun listModels(apiKey: String): Result<List<String>> = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            val encodedKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8.name())
+            connection = URL("https://generativelanguage.googleapis.com/v1beta/models?key=$encodedKey&pageSize=100")
+                .openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 15_000
+
+            val responseCode = connection.responseCode
+            if (responseCode in 200..299) {
+                val response = ApiClientUtils.readResponseBounded(connection.inputStream)
+                val json = JSONObject(response)
+                val models = json.optJSONArray("models")
+                val list = mutableListOf<String>()
+                if (models != null) {
+                    for (i in 0 until models.length()) {
+                        val obj = models.getJSONObject(i)
+                        val name = obj.optString("name", "")
+                        if (name.startsWith("models/")) {
+                            list.add(name.removePrefix("models/"))
+                        } else if (name.isNotBlank()) {
+                            list.add(name)
+                        }
+                    }
+                }
+                list.sort()
+                Result.success(list)
+            } else {
+                val errorBody = ApiClientUtils.readErrorBody(connection.errorStream)
+                val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
+                val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
+                Result.failure(Exception(if (apiMessage.isNotEmpty()) apiMessage else "HTTP $responseCode"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     suspend fun generate(
         prompt: String,
         text: String,

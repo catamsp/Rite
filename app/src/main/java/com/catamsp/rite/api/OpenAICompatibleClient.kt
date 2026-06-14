@@ -81,6 +81,47 @@ class OpenAICompatibleClient {
         }
     }
 
+    suspend fun listModels(apiKey: String, endpoint: String): Result<List<String>> = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            val baseUrl = endpoint.trimEnd('/')
+            connection = URL("$baseUrl/models")
+                .openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("Authorization", "Bearer $apiKey")
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 15_000
+
+            val responseCode = connection.responseCode
+            if (responseCode in 200..299) {
+                val response = ApiClientUtils.readResponseBounded(connection.inputStream)
+                val json = JSONObject(response)
+                val data = json.optJSONArray("data")
+                val list = mutableListOf<String>()
+                if (data != null) {
+                    for (i in 0 until data.length()) {
+                        val obj = data.getJSONObject(i)
+                        val id = obj.optString("id", "")
+                        if (id.isNotBlank()) {
+                            list.add(id)
+                        }
+                    }
+                }
+                list.sort()
+                Result.success(list)
+            } else {
+                val errorBody = ApiClientUtils.readErrorBody(connection.errorStream)
+                val errorJson = try { JSONObject(errorBody) } catch (_: Exception) { null }
+                val apiMessage = errorJson?.optJSONObject("error")?.optString("message", "") ?: ""
+                Result.failure(Exception(if (apiMessage.isNotEmpty()) apiMessage else "HTTP $responseCode"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     suspend fun generate(
         prompt: String,
         text: String,

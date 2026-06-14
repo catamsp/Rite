@@ -141,8 +141,10 @@ fun KeysScreen(
 
 private fun getProviderFromKey(key: String): String {
     return when {
-        key.startsWith("gsk_") -> "Groq"
         key.startsWith("AIza") -> "Gemini"
+        key.startsWith("gsk_") -> "Groq"
+        key.startsWith("csk-") -> "Cerebras"
+        key.startsWith("kilo_") || (key.startsWith("eyJ") && key.contains(".")) -> "Kilo"
         key.startsWith("sk-") -> "OpenAI"
         else -> "Other"
     }
@@ -246,8 +248,17 @@ private fun AddKeyDialog(
                                     val settingsState = settingsViewModel.state.value
                                     val result = withContext(Dispatchers.IO) {
                                         when {
+                                            trimmedKey.startsWith("AIza") -> {
+                                                app.geminiClient.validateKey(trimmedKey)
+                                            }
                                             trimmedKey.startsWith("gsk_") -> {
-                                                app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", settingsState.groqModel)
+                                                app.openAIClient.validateKey(trimmedKey, "https://api.groq.com/openai/v1", "llama-3.3-70b-versatile")
+                                            }
+                                            trimmedKey.startsWith("csk-") -> {
+                                                app.openAIClient.validateKey(trimmedKey, "https://api.cerebras.ai/v1", "gpt-oss-120b")
+                                            }
+                                            trimmedKey.startsWith("kilo_") || (trimmedKey.startsWith("eyJ") && trimmedKey.contains(".")) -> {
+                                                app.openAIClient.validateKey(trimmedKey, "https://api.kilo.ai/api/gateway", "anthropic/claude-sonnet-4.5")
                                             }
                                             settingsState.providerType == ProviderType.CUSTOM && settingsState.customEndpoint.isNotBlank() -> {
                                                 app.openAIClient.validateKey(trimmedKey, settingsState.customEndpoint, settingsState.customModel)
