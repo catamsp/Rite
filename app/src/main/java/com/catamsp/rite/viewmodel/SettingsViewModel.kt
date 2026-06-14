@@ -15,6 +15,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +23,10 @@ import org.json.JSONObject
 data class FallbackRow(
     val provider: String,
     val model: String
+)
+
+data class ProviderKeyStatus(
+    val isActive: Boolean
 )
 
 @Stable
@@ -39,7 +44,9 @@ data class SettingsState(
         FallbackRow(ProviderType.GEMINI, "gemini-2.5-flash-lite")
     ),
     val availableModels: Map<String, List<String>> = emptyMap(),
-    val modelsLoading: Set<String> = emptySet()
+    val modelsLoading: Set<String> = emptySet(),
+    val deprecatedModels: Set<String> = emptySet(),
+    val providerKeyStatuses: Map<String, List<ProviderKeyStatus>> = emptyMap()
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -66,8 +73,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val modelsCache = mutableMapOf<String, List<String>>()
 
     init {
-        val providers = _state.value.fallbackRows.map { it.provider }.distinct()
-        providers.forEach { fetchModelsForProvider(it) }
+        val allProviders = listOf(ProviderType.GEMINI, ProviderType.GROQ, ProviderType.KILO, ProviderType.CEREBRAS)
+        val providersWithKeys = allProviders.filter { app.keyManager.getKeysForProvider(it).isNotEmpty() }
+        providersWithKeys.forEach { fetchModelsForProvider(it) }
+        refreshKeyStatuses()
     }
 
     fun updateProviderType(newType: String) {
@@ -154,54 +163,64 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addFallbackRow(row: FallbackRow) {
-        val current = _state.value.fallbackRows.toMutableList()
-        current.add(row)
-        _state.value = _state.value.copy(fallbackRows = current)
-        saveFallbackRows(current)
+        _state.update { current ->
+            val updated = current.fallbackRows.toMutableList()
+            updated.add(row)
+            current.copy(fallbackRows = updated)
+        }
+        saveFallbackRows(_state.value.fallbackRows)
         fetchModelsForProvider(row.provider)
+        validateDeprecatedModels()
     }
 
     fun removeFallbackRow(index: Int) {
-        val current = _state.value.fallbackRows.toMutableList()
-        if (index in current.indices) {
-            current.removeAt(index)
-            _state.value = _state.value.copy(fallbackRows = current)
-            saveFallbackRows(current)
+        _state.update { current ->
+            val updated = current.fallbackRows.toMutableList()
+            if (index in updated.indices) {
+                updated.removeAt(index)
+                current.copy(fallbackRows = updated)
+            } else current
         }
+        saveFallbackRows(_state.value.fallbackRows)
+        validateDeprecatedModels()
     }
 
     fun updateFallbackRow(index: Int, row: FallbackRow) {
-        val current = _state.value.fallbackRows.toMutableList()
-        if (index in current.indices) {
-            val oldProvider = current[index].provider
-            current[index] = row
-            _state.value = _state.value.copy(fallbackRows = current)
-            saveFallbackRows(current)
-            if (oldProvider != row.provider) {
-                fetchModelsForProvider(row.provider)
-            }
+        _state.update { current ->
+            val updated = current.fallbackRows.toMutableList()
+            if (index in updated.indices) {
+                val oldProvider = updated[index].provider
+                updated[index] = row
+                if (oldProvider != row.provider) {
+                    fetchModelsForProvider(row.provider)
+                }
+                current.copy(fallbackRows = updated)
+            } else current
         }
+        saveFallbackRows(_state.value.fallbackRows)
+        validateDeprecatedModels()
     }
 
     fun moveFallbackRow(from: Int, to: Int) {
-        val current = _state.value.fallbackRows.toMutableList()
-        if (from in current.indices && to in current.indices) {
-            val item = current.removeAt(from)
-            current.add(to, item)
-            _state.value = _state.value.copy(fallbackRows = current)
-            saveFallbackRows(current)
+        _state.update { current ->
+            val updated = current.fallbackRows.toMutableList()
+            if (from in updated.indices && to in updated.indices) {
+                val item = updated.removeAt(from)
+                updated.add(to, item)
+                current.copy(fallbackRows = updated)
+            } else current
         }
+        saveFallbackRows(_state.value.fallbackRows)
     }
 
     fun refreshAllModels() {
         modelsCache.clear()
         val allProviders = listOf(ProviderType.GEMINI, ProviderType.GROQ, ProviderType.KILO, ProviderType.CEREBRAS)
         val providersWithKeys = allProviders.filter { app.keyManager.getKeysForProvider(it).isNotEmpty() }
-        _state.value = _state.value.copy(
-            availableModels = emptyMap(),
-            modelsLoading = providersWithKeys.toSet()
-        )
-        providersWithKeys.forEach { fetchModelsForProvider(it) }
+        _state.update { it.copy(modelsLoading = providersWithKeys.toSet()) }
+        providersWithKeys.forEach { provider ->
+            viewModelScope.launch(Dispatchers.IO) { fetchModelsDirect(provider) }
+        }
     }
 
     fun fetchModelsForProvider(provider: String) {
@@ -212,39 +231,76 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val keys = app.keyManager.getKeysForProvider(provider)
         if (keys.isEmpty()) return
 
-        val currentLoading = _state.value.modelsLoading + provider
-        _state.value = _state.value.copy(modelsLoading = currentLoading)
+        _state.update { it.copy(modelsLoading = it.modelsLoading + provider) }
+        viewModelScope.launch(Dispatchers.IO) { fetchModelsDirect(provider) }
+    }
 
-        viewModelScope.launch(Dispatchers.IO) {
-            val key = keys.first()
-            val result = when (provider) {
-                ProviderType.GEMINI -> app.geminiClient.listModels(key)
-                else -> {
-                    val endpoint = resolveEndpoint(provider)
-                    app.openAIClient.listModels(key, endpoint)
-                }
+    private suspend fun fetchModelsDirect(provider: String) {
+        val keys = app.keyManager.getKeysForProvider(provider)
+        if (keys.isEmpty()) {
+            _state.update { it.copy(modelsLoading = it.modelsLoading - provider) }
+            return
+        }
+
+        val key = keys.first()
+        val result = when (provider) {
+            ProviderType.GEMINI -> app.geminiClient.listModels(key)
+            else -> {
+                val endpoint = resolveEndpoint(provider)
+                app.openAIClient.listModels(key, endpoint)
             }
+        }
 
-            val current = _state.value
+        _state.update { current ->
             val newLoading = current.modelsLoading - provider
-
             if (result.isSuccess) {
                 val models = result.getOrThrow()
                 modelsCache[provider] = models
-                _state.value = current.copy(
+                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "fetchModels: $provider → ${models.size} models")
+                current.copy(
                     availableModels = current.availableModels + (provider to models),
                     modelsLoading = newLoading
                 )
-                if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "fetchModels: $provider → ${models.size} models")
             } else {
                 modelsCache[provider] = emptyList()
-                _state.value = current.copy(
+                Log.e("Rite", "fetchModels: $provider failed: ${result.exceptionOrNull()?.message}")
+                current.copy(
                     availableModels = current.availableModels + (provider to emptyList()),
                     modelsLoading = newLoading
                 )
-                Log.e("Rite", "fetchModels: $provider failed: ${result.exceptionOrNull()?.message}")
             }
         }
+        validateDeprecatedModels()
+    }
+
+    private fun validateDeprecatedModels() {
+        val current = _state.value
+        val deprecated = mutableSetOf<String>()
+        current.fallbackRows.forEach { row ->
+            if (row.model.isNotEmpty() && row.provider != ProviderType.CUSTOM) {
+                val models = current.availableModels[row.provider]
+                if (models != null && models.isNotEmpty() && row.model !in models) {
+                    deprecated.add("${row.provider}:${row.model}")
+                }
+            }
+        }
+        _state.update { it.copy(deprecatedModels = deprecated) }
+        refreshKeyStatuses()
+    }
+
+    fun isModelDeprecated(provider: String, model: String): Boolean {
+        return "${provider}:${model}" in _state.value.deprecatedModels
+    }
+
+    fun refreshKeyStatuses() {
+        val allKeyStatuses = app.keyManager.getKeyStatuses()
+        val grouped = mutableMapOf<String, List<ProviderKeyStatus>>()
+        allKeyStatuses.forEach { status ->
+            val provider = com.catamsp.rite.manager.ApiKeySelector.detectProvider(status.maskedKey)
+            val entry = ProviderKeyStatus(isActive = status.isReady)
+            grouped[provider] = (grouped[provider] ?: emptyList()) + entry
+        }
+        _state.update { it.copy(providerKeyStatuses = grouped) }
     }
 
     private fun resolveEndpoint(provider: String): String {

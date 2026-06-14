@@ -4,7 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,12 +21,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
@@ -33,7 +41,9 @@ import com.catamsp.rite.model.ProviderType
 import com.catamsp.rite.ui.components.PressableCard
 import com.catamsp.rite.ui.components.ScreenTitle
 import com.catamsp.rite.viewmodel.FallbackRow
+import com.catamsp.rite.viewmodel.ProviderKeyStatus
 import com.catamsp.rite.viewmodel.SettingsViewModel
+import kotlin.math.roundToInt
 
 private val PROVIDER_OPTIONS = listOf(
     ProviderType.GEMINI,
@@ -56,7 +66,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     }
 
     var showEditDialog by remember { mutableStateOf(false) }
-    var advancedExpanded by remember { mutableStateOf(false) }
+    var advancedExpanded by remember { mutableStateOf(true) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -68,14 +78,13 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             FallbackDashboardSection(
                 rows = settingsState.fallbackRows,
                 modelsLoading = settingsState.modelsLoading,
+                deprecatedModels = settingsState.deprecatedModels,
+                providerKeyStatuses = settingsState.providerKeyStatuses,
                 onRefresh = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.refreshAllModels()
                 },
-                onEdit = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showEditDialog = true
-                },
+                onMoveRow = { from, to -> viewModel.moveFallbackRow(from, to) },
                 onAddRow = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.addFallbackRow(FallbackRow(ProviderType.GEMINI, ""))
@@ -142,6 +151,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             rows = settingsState.fallbackRows,
             availableModels = settingsState.availableModels,
             modelsLoading = settingsState.modelsLoading,
+            deprecatedModels = settingsState.deprecatedModels,
             onDismiss = { showEditDialog = false },
             onAddRow = { viewModel.addFallbackRow(it) },
             onRemoveRow = { viewModel.removeFallbackRow(it) },
@@ -156,10 +166,16 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 private fun FallbackDashboardSection(
     rows: List<FallbackRow>,
     modelsLoading: Set<String>,
+    deprecatedModels: Set<String>,
+    providerKeyStatuses: Map<String, List<ProviderKeyStatus>>,
     onRefresh: () -> Unit,
-    onEdit: () -> Unit,
+    onMoveRow: (Int, Int) -> Unit,
     onAddRow: () -> Unit
 ) {
+    var draggedIndex by remember { mutableIntStateOf(-1) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    var itemHeight by remember { mutableFloatStateOf(0f) }
+
     PressableCard {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -168,7 +184,7 @@ private fun FallbackDashboardSection(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Fallback Order",
+                    text = "AI provider, Models & Fallback",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface
@@ -195,46 +211,128 @@ private fun FallbackDashboardSection(
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                TextButton(onClick = onEdit) {
-                    Text("Edit", fontSize = 14.sp)
-                }
             }
         }
 
         if (rows.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(modifier = Modifier.width(32.dp))
+                Text(
+                    text = "Provider",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Model",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1.5f)
+                )
+                Spacer(modifier = Modifier.width(48.dp))
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
             rows.forEachIndexed { index, row ->
+                val isDeprecated = row.model.isNotEmpty() && "${row.provider}:${row.model}" in deprecatedModels
+                val isDragged = draggedIndex == index
+                val keyStatuses = providerKeyStatuses[row.provider] ?: emptyList()
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .zIndex(if (isDragged) 1f else 0f)
+                        .offset { IntOffset(0, if (isDragged) dragOffsetY.roundToInt() else 0) }
+                        .onGloballyPositioned { coords ->
+                            if (index == 0) itemHeight = coords.size.height.toFloat()
+                        }
+                        .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${index + 1}.",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(24.dp)
+                        text = "\u283F",
+                        fontSize = 16.sp,
+                        color = if (isDragged) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .width(32.dp)
+                            .pointerInput(index) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        draggedIndex = index
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+                                    },
+                                    onDragEnd = {
+                                        if (itemHeight > 0f) {
+                                            val targetIndex = (index + (dragOffsetY / itemHeight).roundToInt())
+                                                .coerceIn(0, rows.lastIndex)
+                                            if (targetIndex != index) {
+                                                onMoveRow(index, targetIndex)
+                                            }
+                                        }
+                                        draggedIndex = -1
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggedIndex = -1
+                                        dragOffsetY = 0f
+                                    }
+                                )
+                            },
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                     Text(
                         text = ProviderType.label(row.provider),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        text = " \u00b7 ",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = row.model.ifEmpty { "No model" },
-                        fontSize = 13.sp,
-                        color = if (row.model.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
-                                else MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                if (index < rows.lastIndex) {
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Column(modifier = Modifier.weight(1.5f)) {
+                        Text(
+                            text = row.model.ifEmpty { "No model" },
+                            fontSize = 13.sp,
+                            color = when {
+                                row.model.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
+                                isDeprecated -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                        if (isDeprecated) {
+                            Text(
+                                text = "deprecated",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.width(48.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        keyStatuses.forEach { status ->
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(
+                                        color = if (status.isActive) Color.White else Color.Gray,
+                                        shape = RoundedCornerShape(3.dp)
+                                    )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -308,6 +406,7 @@ private fun EditFallbackDialog(
     rows: List<FallbackRow>,
     availableModels: Map<String, List<String>>,
     modelsLoading: Set<String>,
+    deprecatedModels: Set<String>,
     onDismiss: () -> Unit,
     onAddRow: (FallbackRow) -> Unit,
     onRemoveRow: (Int) -> Unit,
@@ -322,7 +421,8 @@ private fun EditFallbackDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.85f),
+                .fillMaxHeight(0.85f)
+                .border(1.dp, Color.White, RoundedCornerShape(16.dp)),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
@@ -361,6 +461,7 @@ private fun EditFallbackDialog(
                             row = rows[index],
                             availableModels = availableModels[rows[index].provider] ?: emptyList(),
                             isLoadingModels = modelsLoading.contains(rows[index].provider),
+                            isDeprecated = rows[index].model.isNotEmpty() && "${rows[index].provider}:${rows[index].model}" in deprecatedModels,
                             canRemove = rows.size > 1,
                             onRowChanged = { onRowChanged(index, it) },
                             onRemove = { onRemoveRow(index) },
@@ -408,6 +509,7 @@ private fun FallbackRowItem(
     row: FallbackRow,
     availableModels: List<String>,
     isLoadingModels: Boolean,
+    isDeprecated: Boolean,
     canRemove: Boolean,
     onRowChanged: (FallbackRow) -> Unit,
     onRemove: () -> Unit,
@@ -553,8 +655,10 @@ private fun FallbackRowItem(
                                 textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                    focusedBorderColor = if (isDeprecated) MaterialTheme.colorScheme.error
+                                                         else MaterialTheme.colorScheme.onSurface,
+                                    unfocusedBorderColor = if (isDeprecated) MaterialTheme.colorScheme.error
+                                                          else MaterialTheme.colorScheme.outlineVariant
                                 )
                             )
                             ExposedDropdownMenu(

@@ -150,6 +150,16 @@ private fun getProviderFromKey(key: String): String {
     }
 }
 
+private fun detectProvider(key: String): String? {
+    return when {
+        key.startsWith("AIza") -> ProviderType.GEMINI
+        key.startsWith("gsk_") -> ProviderType.GROQ
+        key.startsWith("csk-") -> ProviderType.CEREBRAS
+        key.startsWith("kilo_") || (key.startsWith("eyJ") && key.contains(".")) -> ProviderType.KILO
+        else -> null
+    }
+}
+
 @Composable
 private fun KeysHeader(onAdd: () -> Unit) {
     Row(
@@ -278,6 +288,10 @@ private fun AddKeyDialog(
                                             if (addResult.isSuccess) {
                                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                                 clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+                                                val provider = detectProvider(trimmedKey)
+                                                if (provider != null) {
+                                                    settingsViewModel.fetchModelsForProvider(provider)
+                                                }
                                                 onKeyAdded()
                                             } else {
                                                 testResult = addResult.exceptionOrNull()?.message ?: "Failed to store key"
