@@ -19,6 +19,8 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 [![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#%EF%B8%8F-tech-stack)
 [![Gemini](https://img.shields.io/badge/Gemini_AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](#-ai-providers)
 [![Groq](https://img.shields.io/badge/Groq-F55036?style=for-the-badge&logo=groq&logoColor=white)](#-ai-providers)
+[![Kilo](https://img.shields.io/badge/Kilo_AI-FF6B35?style=for-the-badge&logoColor=white)](#-ai-providers)
+[![Cerebras](https://img.shields.io/badge/Cerebras-8B5CF6?style=for-the-badge&logoColor=white)](#-ai-providers)
 [![OpenAI](https://img.shields.io/badge/OpenAI_Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](#-ai-providers)
 [![License: MIT](https://img.shields.io/badge/MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
@@ -114,19 +116,19 @@ Type a trigger and the text transforms right where you're typing. No copy-paste.
 15+ AI-powered text transformations AND 20+ offline local utilities — all in one place.
 
 ### 📸 Screen-Aware AI
-`?freply`, `?qreply`, and `?sreply` read visible screen text or capture screenshots for context-aware replies. Opt-in via Settings.
+`?freply`, `?qreply`, `?sreply`, `?fsum`, `?qsum`, `?ssum`, and `?stranslate` read visible screen text or capture screenshots for context-aware replies, summaries, and translations. Opt-in via Settings.
 
 </td>
 <td width="50%">
 
-### 🔌 Multiple AI Providers
-Use **Google Gemini**, **Groq**, or connect **any OpenAI-compatible API** (OpenAI, Claude, local LLMs, self-hosted).
+### 🔌 Multiple AI Providers with Fallback
+Use **Google Gemini**, **Groq**, **Kilo AI**, **Cerebras**, or connect **any OpenAI-compatible API**. Add multiple fallback rows — if one provider is rate-limited, the next row tries automatically.
 
 ### 📱 Launch Apps & Actions
 Open apps, make calls, send SMS, compose emails, and visit URLs — all by typing a trigger.
 
 ### 📊 Real-Time Key Status
-Keys tab shows each key's provider (Groq, Gemini, OpenAI) and status ("Active" or "Rate limited") with live countdown timers.
+Keys tab shows each key's provider (Groq, Gemini, Kilo, Cerebras, OpenAI) and status ("Active" or "Rate limited") with live countdown timers. API key status dots in fallback dashboard.
 
 ### 🎨 Filtered Commands Tab
 Browse commands with filter chips (All / AI / Local / Action / Replacer / Context-Aware). Add and edit custom commands via a clean popup dialog.
@@ -177,9 +179,13 @@ These read visible screen text (or capture a screenshot) and send it to AI for c
 | **`?freply`** | Full screen context reply | Reads all visible text on screen, sends to AI for a reply |
 | **`?qreply`** | Quick recent context reply | Reads recent text changes, sends to AI for a faster reply |
 | **`?sreply`** | Screenshot-based reply (Android 11+) | Captures a screenshot and sends it to AI with your text |
+| **`?fsum`** | Full screen context summarize | Reads all visible text on screen, sends to AI for a summary |
+| **`?qsum`** | Quick recent context summarize | Reads recent text changes, sends to AI for a faster summary |
+| **`?ssum`** | Screenshot-based summarize (Android 11+) | Captures a screenshot and sends it to AI for a summary |
+| **`?stranslate`** | Screenshot-based translate (Android 11+) | Captures a screenshot and translates the visible text to English |
 
 > [!NOTE]
-> Screen context commands close the keyboard before reading the screen. The AI sees what's visible on your screen and crafts a reply based on the full context. Use `?sreply` when you need the AI to see images or UI elements.
+> Screen context commands close the keyboard before reading the screen. The AI sees what's visible on your screen and processes it. Use screenshot commands (`?sreply`, `?ssum`, `?stranslate`) when you need the AI to see images or UI elements.
 
 ---
 
@@ -381,6 +387,8 @@ Rite uses Android's Accessibility Service to read text fields. Most standard `Ed
 
 - **Groq (free tier):** [console.groq.com](https://console.groq.com) → Create API key (fastest inference)
 - **Google Gemini (free):** [aistudio.google.com](https://aistudio.google.com/apikey) → Create API key
+- **Kilo AI:** [kilo.ai](https://kilo.ai) → Create API key
+- **Cerebras:** [cerebras.ai](https://cerebras.ai) → Create API key
 - **OpenAI:** [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
 - **Any OpenAI-compatible provider:** Get the base URL and API key from your provider
 
@@ -477,6 +485,32 @@ Only when you type a trigger:
 <br>
 
 ## 📝 Changelog
+
+### v2.1.0 — Multi-Provider Fallback & Context-Aware Commands
+
+#### New Features
+- **Multi-provider fallback system** — Add multiple fallback rows (provider + model). If one provider is rate-limited, the next row tries automatically. Drag to reorder.
+- **Kilo AI provider** — Built-in Kilo AI support with automatic model fetching
+- **Cerebras provider** — Built-in Cerebras support with automatic model fetching
+- **Dynamic model lists** — Models fetched live from provider APIs instead of hardcoded lists
+- **Deprecated model validation** — Warns when a fallback model is no longer available
+- **Context-aware summarize commands** — `?qsum` (quick), `?fsum` (full), `?ssum` (screenshot) summarize screen content
+- **Context-aware translate command** — `?stranslate` translates text from screenshots to English
+- **API key status dots** — Fallback dashboard shows white (active) or grey (rate-limited) status per key
+- **Fallback dashboard** — Dedicated Settings section for managing provider rows with drag-to-reorder
+
+#### Improvements
+- **Advanced Settings open by default** — No need to tap to expand
+- **Pre-fetch models on key add** — Models load automatically when you add an API key
+- **Refresh all models** — Single button refreshes model lists for all providers with keys
+- **Dynamic system prompts** — Context-aware commands use appropriate prompts (reply vs summarize/translate)
+- **Performance optimizations** — Atomic state updates, reduced redundant API calls
+
+#### Bug Fixes
+- **Fallback row update** — Fixed model list not refreshing when switching providers in edit dialog
+- **State race conditions** — Fixed concurrent model fetches causing stale state
+
+---
 
 ### v2.0.6 — UI Overhaul & Screen-Aware AI
 
@@ -616,7 +650,7 @@ Only when you type a trigger:
 | **Security** | Android Keystore + AES-256-GCM |
 | **Storage** | SharedPreferences (encrypted for keys) |
 | **Screen Context** | Accessibility node tree traversal + screenshot capture (API 30+) |
-| **AI Providers** | Google Gemini, Groq, OpenAI-compatible (any provider) |
+| **AI Providers** | Google Gemini, Groq, Kilo AI, Cerebras, OpenAI-compatible (any provider) |
 
 <br>
 
