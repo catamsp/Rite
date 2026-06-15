@@ -384,6 +384,8 @@ class AssistantService : AccessibilityService() {
         var spinnerJob: Job? = null
         var inputField: AccessibilityNodeInfo? = null
         val isScreenshotCommand = command.trigger.endsWith("sreply")
+            || command.trigger.endsWith("ssum")
+            || command.trigger.endsWith("stranslate")
         try {
             withTimeout(AI_COMMAND_TIMEOUT_MS) {
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: starting${if (isScreenshotCommand) " (screenshot)" else ""}, closing keyboard")
@@ -462,7 +464,12 @@ class AssistantService : AccessibilityService() {
                     val instructionPart = if (userInstruction.isNotBlank()) {
                         " The user wants the reply tone/style to be: $userInstruction."
                     } else ""
-                    val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a screenshot from the user's screen showing a conversation. Generate a natural, conversational reply to the conversation visible in the screenshot.$instructionPart Return ONLY the reply text with no explanations or commentary."
+                    val isReplyCommand = command.trigger.endsWith("sreply")
+                    val contextAwareSystemPrompt = if (isReplyCommand) {
+                        "You are a contextual reply assistant. You can see a screenshot from the user's screen showing a conversation. Generate a natural, conversational reply to the conversation visible in the screenshot.$instructionPart Return ONLY the reply text with no explanations or commentary."
+                    } else {
+                        "You are a screen content assistant. You can see a screenshot from the user's screen. Follow the instructions provided to process the content.$instructionPart Return ONLY the result with no explanations or commentary."
+                    }
 
                     if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI (screenshot) with ${fallbackRows.size} fallback rows")
 
@@ -555,7 +562,7 @@ class AssistantService : AccessibilityService() {
                         return@withTimeout
                     }
 
-                    val mode = if (command.trigger.endsWith("freply"))
+                    val mode = if (command.trigger.endsWith("freply") || command.trigger.endsWith("fsum"))
                         ScreenContextCollector.ContextMode.FULL
                     else
                         ScreenContextCollector.ContextMode.QUICK
@@ -596,7 +603,12 @@ class AssistantService : AccessibilityService() {
                 val instructionPart = if (userInstruction.isNotBlank()) {
                     " The user wants the reply tone/style to be: $userInstruction."
                 } else ""
-                val contextAwareSystemPrompt = "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation.$instructionPart Return ONLY the reply text with no explanations or commentary."
+                val isReplyCommand = command.trigger.endsWith("freply") || command.trigger.endsWith("qreply")
+                val contextAwareSystemPrompt = if (isReplyCommand) {
+                    "You are a contextual reply assistant. You can see a conversation from the user's screen. Generate a natural, conversational reply to the conversation.$instructionPart Return ONLY the reply text with no explanations or commentary."
+                } else {
+                    "You are a screen content assistant. You can see content from the user's screen. Follow the instructions provided to process the content.$instructionPart Return ONLY the result with no explanations or commentary."
+                }
 
                 if (ENABLE_DEBUG_LOGGING) Log.d("Rite", "CtxAware: calling AI with ${fallbackRows.size} fallback rows")
 

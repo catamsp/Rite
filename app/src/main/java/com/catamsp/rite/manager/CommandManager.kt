@@ -68,7 +68,11 @@ class CommandManager(context: Context) {
     private val contextAwareDefinitions = listOf(
         "freply" to "Generate a natural reply based on the visible screen conversation. Return ONLY the reply with no explanations or commentary.",
         "qreply" to "Generate a natural reply based on recent screen messages. Return ONLY the reply with no explanations or commentary.",
-        "sreply" to "Analyze the screenshot and generate a natural reply to the visible conversation. Return ONLY the reply with no explanations or commentary."
+        "sreply" to "Analyze the screenshot and generate a natural reply to the visible conversation. Return ONLY the reply with no explanations or commentary.",
+        "fsum" to "Summarize the screen content clearly and concisely, keeping all important information. Return ONLY the summarized text with no explanations or commentary.",
+        "qsum" to "Summarize the recent screen content clearly and concisely, keeping all important information. Return ONLY the summarized text with no explanations or commentary.",
+        "ssum" to "Analyze the screenshot and summarize the content clearly and concisely, keeping all important information. Return ONLY the summarized text with no explanations or commentary.",
+        "stranslate" to "Analyze the screenshot and translate the content into English. Auto-detect the source language. Return ONLY the translated text with no explanations or commentary."
     )
 
     fun getTriggerPrefix(): String = cachedPrefix
