@@ -724,13 +724,7 @@ private fun CreativitySection(temperature: Float, onCreativityChange: (Float) ->
             value = temperature,
             onValueChange = onCreativityChange,
             valueRange = 0f..2f,
-            steps = 19,
-            modifier = Modifier.fillMaxWidth().height(26.dp),
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = MaterialTheme.colorScheme.outline
-            )
+            modifier = Modifier.fillMaxWidth().height(32.dp)
         )
     }
 }
