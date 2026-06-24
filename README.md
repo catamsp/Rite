@@ -23,6 +23,8 @@ Type a trigger like **`?fix`** or **`?upper`** at the end of any text, in any ap
 [![Cerebras](https://img.shields.io/badge/Cerebras-8B5CF6?style=for-the-badge&logoColor=white)](#-ai-providers)
 [![OpenAI](https://img.shields.io/badge/OpenAI_Compatible-412991?style=for-the-badge&logo=openai&logoColor=white)](#-ai-providers)
 [![License: MIT](https://img.shields.io/badge/MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![Reddit](https://shields.io)](https://www.reddit.com/r/ProjectRite/)
+
 
 [![Latest Release](https://img.shields.io/github/v/release/catamsp/Rite?style=flat-square&label=Latest&color=brightgreen)](https://github.com/catamsp/Rite/releases/latest)
 [![Min SDK](https://img.shields.io/badge/Min_SDK-API_23-orange?style=flat-square)](#-requirements)
