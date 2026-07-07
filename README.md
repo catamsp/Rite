@@ -254,8 +254,8 @@ These launch system actions or apps. Configure them in the **Commands** tab as *
 | `?ig` | `app:com.instagram.android` | Opens Instagram |
 | `?yt` | `app:com.google.android.youtube` | Opens YouTube |
 | `?tg` | `app:org.telegram.messenger` | Opens Telegram |
-| `?phone` | `tel:+919876543210` | Direct call (requires Phone permission) |
-| `?sms` | `sms:+919876543210` | Opens SMS composer |
+| `?phone` | `tel:+15550000000` | Direct call (requires Phone permission) |
+| `?sms` | `sms:+15550000000` | Opens SMS composer |
 | `?mail` | `mailto:user@email.com` | Opens email composer |
 | `?google` | `https://google.com` | Opens URL in browser |
 

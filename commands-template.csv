@@ -17,8 +17,8 @@ trigger,prompt
 ?ig,app:com.instagram.android
 ?yt,app:com.google.android.youtube
 ?tg,app:org.telegram.messenger
-?phone,tel:+919876543210
-?sms,sms:+919876543210
+?phone,tel:+15550000000
+?sms,sms:+15550000000
 ?mail,mailto:user@example.com
 ?google,https://google.com
 ?poem,Convert this text into a short beautiful poem

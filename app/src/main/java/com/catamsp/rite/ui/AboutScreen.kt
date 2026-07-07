@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.catamsp.rite.BuildConfig
 import com.catamsp.rite.ui.components.ScreenTitle
 import com.catamsp.rite.ui.theme.SurfaceTertiary
 import com.catamsp.rite.viewmodel.SettingsViewModel
@@ -120,8 +121,8 @@ fun AboutScreen(viewModel: SettingsViewModel = viewModel()) {
                 title = "Intent Commands (Custom)",
                 commands = listOf(
                     "${triggerPrefix}wp" to "app:com.whatsapp → Opens WhatsApp",
-                    "${triggerPrefix}call" to "tel:+919876543210 → Makes a call",
-                    "${triggerPrefix}sms" to "sms:+919876543210 → Opens SMS",
+                    "${triggerPrefix}call" to "tel:+15550000000 → Makes a call",
+                    "${triggerPrefix}sms" to "sms:+15550000000 → Opens SMS",
                     "${triggerPrefix}mail" to "mailto:user@email.com → Opens email",
                     "${triggerPrefix}google" to "https://google.com → Opens URL"
                 )
@@ -143,7 +144,7 @@ private fun AboutSection() {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = buildAnnotatedString {
-                append("Version 2.0.6 · Built by ")
+                append("Version ${BuildConfig.VERSION_NAME} · Built by ")
                 withStyle(SpanStyle(fontWeight = FontWeight.Medium, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)) {
                     append("catamsp")
                 }
