@@ -73,6 +73,8 @@ class ApiKeySelector {
                 key.startsWith("gsk_") -> "groq"
                 key.startsWith("csk-") -> "cerebras"
                 key.startsWith("kilo_") || (key.startsWith("eyJ") && key.contains(".")) -> "kilo"
+                key.startsWith("sk-or-") -> "openrouter"
+                key.startsWith("fw_") -> "fireworks"
                 else -> "custom"
             }
         }
