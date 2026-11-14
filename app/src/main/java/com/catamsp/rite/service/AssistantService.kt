@@ -750,6 +750,10 @@ class AssistantService : AccessibilityService() {
             ProviderType.GROQ -> "https://api.groq.com/openai/v1"
             ProviderType.KILO -> "https://api.kilo.ai/api/gateway"
             ProviderType.CEREBRAS -> "https://api.cerebras.ai/v1"
+            ProviderType.OPENROUTER -> "https://openrouter.ai/api/v1"
+            ProviderType.FIREWORKS -> "https://api.fireworks.ai/inference/v1"
+            ProviderType.STABLE_HORDE -> "https://oai.stablehorde.net/v1"
+            ProviderType.MISTRAL -> "https://api.mistral.ai/v1"
             ProviderType.CUSTOM -> prefs.getString("custom_endpoint", "") ?: ""
             else -> ""
         }

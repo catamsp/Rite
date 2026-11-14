@@ -50,6 +50,10 @@ private val PROVIDER_OPTIONS = listOf(
     ProviderType.GROQ,
     ProviderType.KILO,
     ProviderType.CEREBRAS,
+    ProviderType.OPENROUTER,
+    ProviderType.FIREWORKS,
+    ProviderType.STABLE_HORDE,
+    ProviderType.MISTRAL,
     ProviderType.CUSTOM
 )
 

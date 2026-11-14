@@ -73,7 +73,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val modelsCache = mutableMapOf<String, List<String>>()
 
     init {
-        val allProviders = listOf(ProviderType.GEMINI, ProviderType.GROQ, ProviderType.KILO, ProviderType.CEREBRAS)
+        val allProviders = listOf(ProviderType.GEMINI, ProviderType.GROQ, ProviderType.KILO, ProviderType.CEREBRAS, ProviderType.OPENROUTER, ProviderType.FIREWORKS, ProviderType.STABLE_HORDE, ProviderType.MISTRAL)
         val providersWithKeys = allProviders.filter { app.keyManager.getKeysForProvider(it).isNotEmpty() }
         providersWithKeys.forEach { fetchModelsForProvider(it) }
         refreshKeyStatuses()
@@ -215,7 +215,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshAllModels() {
         modelsCache.clear()
-        val allProviders = listOf(ProviderType.GEMINI, ProviderType.GROQ, ProviderType.KILO, ProviderType.CEREBRAS)
+        val allProviders = listOf(ProviderType.GEMINI, ProviderType.GROQ, ProviderType.KILO, ProviderType.CEREBRAS, ProviderType.OPENROUTER, ProviderType.FIREWORKS, ProviderType.STABLE_HORDE, ProviderType.MISTRAL)
         val providersWithKeys = allProviders.filter { app.keyManager.getKeysForProvider(it).isNotEmpty() }
         _state.update { it.copy(modelsLoading = providersWithKeys.toSet()) }
         providersWithKeys.forEach { provider ->
@@ -308,6 +308,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             ProviderType.GROQ -> "https://api.groq.com/openai/v1"
             ProviderType.KILO -> "https://api.kilo.ai/api/gateway"
             ProviderType.CEREBRAS -> "https://api.cerebras.ai/v1"
+            ProviderType.OPENROUTER -> "https://openrouter.ai/api/v1"
+            ProviderType.FIREWORKS -> "https://api.fireworks.ai/inference/v1"
+            ProviderType.STABLE_HORDE -> "https://oai.stablehorde.net/v1"
+            ProviderType.MISTRAL -> "https://api.mistral.ai/v1"
             else -> ""
         }
     }
